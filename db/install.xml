@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="local/konzeptgenerator/db" VERSION="2026022304" COMMENT="Schema for local_konzeptgenerator">
+  <TABLES>
+    <TABLE NAME="local_kgen_methodset" COMMENT="Global method set registry">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="shortname" TYPE="char" LENGTH="100" NOTNULL="true"/>
+        <FIELD NAME="displayname" TYPE="char" LENGTH="255" NOTNULL="true"/>
+        <FIELD NAME="description" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="scopecontextid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="draft"/>
+        <FIELD NAME="currentversion" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="createdby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="modifiedby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="scope_status_idx" UNIQUE="false" FIELDS="scopecontextid,status"/>
+        <INDEX NAME="shortname_uix" UNIQUE="true" FIELDS="shortname"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_kgen_methodset_ver" COMMENT="Version history of global method sets">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="methodsetid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="versionnum" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="draft"/>
+        <FIELD NAME="changelog" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="snapshotjson" TYPE="text" LENGTH="big" NOTNULL="false"/>
+        <FIELD NAME="reviewedby" TYPE="int" LENGTH="10" NOTNULL="false"/>
+        <FIELD NAME="publishedby" TYPE="int" LENGTH="10" NOTNULL="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="set_ver_uix" UNIQUE="true" FIELDS="methodsetid,versionnum"/>
+        <INDEX NAME="set_status_idx" UNIQUE="false" FIELDS="methodsetid,status"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_kgen_method" COMMENT="Methods contained in method sets">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="methodsetid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="methodsetversionid" TYPE="int" LENGTH="10" NOTNULL="false"/>
+        <FIELD NAME="externalref" TYPE="char" LENGTH="255" NOTNULL="false"/>
+        <FIELD NAME="title" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="seminarphase" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="zeitbedarf" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="gruppengroesse" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="kurzbeschreibung" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="ablauf" TYPE="text" LENGTH="big" NOTNULL="false"/>
+        <FIELD NAME="lernziele" TYPE="text" LENGTH="big" NOTNULL="false"/>
+        <FIELD NAME="komplexitaetsgrad" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="vorbereitung" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="raumanforderungen" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="sozialform" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="risiken_tipps" TYPE="text" LENGTH="big" NOTNULL="false"/>
+        <FIELD NAME="debrief" TYPE="text" LENGTH="big" NOTNULL="false"/>
+        <FIELD NAME="material_technik" TYPE="text" LENGTH="big" NOTNULL="false"/>
+        <FIELD NAME="tags" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="kognitive_dimension" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="autor_kontakt" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="metadatakeyvaluesjson" TYPE="text" LENGTH="big" NOTNULL="false"/>
+        <FIELD NAME="h5pcontentid" TYPE="int" LENGTH="10" NOTNULL="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="createdby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="modifiedby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="set_idx" UNIQUE="false" FIELDS="methodsetid"/>
+        <INDEX NAME="setver_idx" UNIQUE="false" FIELDS="methodsetversionid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_kgen_method_file" COMMENT="Files linked to methods">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="methodid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="kind" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="material"/>
+        <FIELD NAME="fileitemid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="method_idx" UNIQUE="false" FIELDS="methodid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_kgen_workflow_event" COMMENT="Workflow transition audit log">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="methodsetid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="methodsetversionid" TYPE="int" LENGTH="10" NOTNULL="false"/>
+        <FIELD NAME="fromstatus" TYPE="char" LENGTH="20" NOTNULL="true"/>
+        <FIELD NAME="tostatus" TYPE="char" LENGTH="20" NOTNULL="true"/>
+        <FIELD NAME="commenttext" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="actorid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="set_idx" UNIQUE="false" FIELDS="methodsetid"/>
+        <INDEX NAME="setver_idx" UNIQUE="false" FIELDS="methodsetversionid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_kgen_set_reviewer" COMMENT="Assigned reviewers per method set">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="methodsetid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="assignedby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="set_idx" UNIQUE="false" FIELDS="methodsetid"/>
+        <INDEX NAME="user_idx" UNIQUE="false" FIELDS="userid"/>
+        <INDEX NAME="set_user_uix" UNIQUE="true" FIELDS="methodsetid,userid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_kgen_review_decision" COMMENT="Per-item review decision for a method set version">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="methodsetid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="methodsetversionid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="itemkey" TYPE="char" LENGTH="40" NOTNULL="true"/>
+        <FIELD NAME="reviewerid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="decision" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="pending"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="setver_idx" UNIQUE="false" FIELDS="methodsetversionid"/>
+        <INDEX NAME="reviewer_idx" UNIQUE="false" FIELDS="reviewerid"/>
+        <INDEX NAME="setver_item_reviewer_uix" UNIQUE="true" FIELDS="methodsetversionid,itemkey,reviewerid"/>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>
