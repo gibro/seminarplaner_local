@@ -1,7 +1,7 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
 
-namespace local_konzeptgenerator\local\repository;
+namespace local_seminarplaner\local\repository;
 
 defined('MOODLE_INTERNAL') || die();
 

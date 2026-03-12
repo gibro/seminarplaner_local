@@ -1,7 +1,7 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
 
-namespace local_konzeptgenerator\local\workflow;
+namespace local_seminarplaner\local\workflow;
 
 defined('MOODLE_INTERNAL') || die();
 

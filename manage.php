@@ -9,27 +9,109 @@ $action = optional_param("action", "", PARAM_ALPHANUMEXT);
 
 require_login();
 $syscontext = context_system::instance();
-require_capability('local/konzeptgenerator:viewglobalsets', $syscontext);
+require_capability('local/seminarplaner:viewglobalsets', $syscontext);
 
-$PAGE->set_url('/local/konzeptgenerator/manage.php');
+$PAGE->set_url('/local/seminarplaner/manage.php');
 $PAGE->set_context($syscontext);
-$PAGE->set_title(get_string('manageglobalsets', 'local_konzeptgenerator'));
-$PAGE->set_heading(get_string('manageglobalsets', 'local_konzeptgenerator'));
+$PAGE->set_title(get_string('manageglobalsets', 'local_seminarplaner'));
+$PAGE->set_heading(get_string('manageglobalsets', 'local_seminarplaner'));
 
-$repo = new \local_konzeptgenerator\local\repository\methodset_repository();
+$repo = new \local_seminarplaner\local\repository\methodset_repository();
 $stringmanager = get_string_manager();
-$nameexplainertext = $stringmanager->string_exists('nameexplainer', 'local_konzeptgenerator')
-    ? get_string('nameexplainer', 'local_konzeptgenerator')
+$nameexplainertext = $stringmanager->string_exists('nameexplainer', 'local_seminarplaner')
+    ? get_string('nameexplainer', 'local_seminarplaner')
     : 'Name = sichtbarer Anzeigename.';
-$shortnameexplainertext = $stringmanager->string_exists('shortnameexplainer', 'local_konzeptgenerator')
-    ? get_string('shortnameexplainer', 'local_konzeptgenerator')
+$shortnameexplainertext = $stringmanager->string_exists('shortnameexplainer', 'local_seminarplaner')
+    ? get_string('shortnameexplainer', 'local_seminarplaner')
     : 'Kurzbezeichnung = technischer, eindeutiger Schlüssel ohne Leerzeichen';
+
+/**
+ * Create a new draft version from the current set version and copy all methods/files.
+ *
+ * @param stdClass $methodset Method set record.
+ * @param int $actorid User id performing the fork.
+ * @param \local_seminarplaner\local\repository\methodset_repository $repo Repository instance.
+ * @return int New draft version id.
+ */
+function local_seminarplaner_fork_current_version_to_draft(stdClass $methodset, int $actorid,
+    \local_seminarplaner\local\repository\methodset_repository $repo): int {
+    global $DB;
+
+    $sourceversionid = (int)($methodset->currentversion ?? 0);
+    if ($sourceversionid <= 0) {
+        throw new moodle_exception('invalidparameter');
+    }
+    $sourceversion = $repo->get_version($sourceversionid);
+    if (!$sourceversion) {
+        throw new moodle_exception('invalidparameter');
+    }
+
+    $transaction = $DB->start_delegated_transaction();
+    $newversionnum = ((int)$sourceversion->versionnum) + 1;
+    $snapshotjson = (string)($sourceversion->snapshotjson ?? '{}');
+    $newversionid = $repo->create_version((int)$methodset->id, $newversionnum, 'draft', $snapshotjson, $actorid);
+    $repo->update_methodset_status((int)$methodset->id, 'draft', $actorid);
+    $now = time();
+    $methods = $DB->get_records('local_kgen_method', [
+        'methodsetid' => (int)$methodset->id,
+        'methodsetversionid' => $sourceversionid,
+    ], 'id ASC');
+    $files = get_file_storage();
+    $contextid = context_system::instance()->id;
+
+    foreach ($methods as $method) {
+        $oldmethodid = (int)$method->id;
+        unset($method->id);
+        $method->methodsetversionid = $newversionid;
+        $method->timecreated = $now;
+        $method->timemodified = $now;
+        $method->createdby = $actorid;
+        $method->modifiedby = $actorid;
+        $newmethodid = (int)$DB->insert_record('local_kgen_method', $method);
+
+        $methodfilelinks = $DB->get_records('local_kgen_method_file', ['methodid' => $oldmethodid], 'id ASC');
+        foreach ($methodfilelinks as $link) {
+            $kind = ((string)$link->kind === 'h5p') ? 'h5p' : 'material';
+            $filearea = $kind === 'h5p' ? 'method_h5p' : 'method_material';
+            $newitemid = local_seminarplaner_next_file_itemid($filearea);
+            $areaentries = $files->get_area_files(
+                $contextid,
+                'local_seminarplaner',
+                $filearea,
+                (int)$link->fileitemid,
+                'id ASC',
+                false
+            );
+            foreach ($areaentries as $entry) {
+                $filerecord = (object)[
+                    'contextid' => $contextid,
+                    'component' => 'local_seminarplaner',
+                    'filearea' => $filearea,
+                    'itemid' => $newitemid,
+                    'filepath' => (string)$entry->get_filepath(),
+                    'filename' => (string)$entry->get_filename(),
+                    'userid' => $actorid,
+                ];
+                $files->create_file_from_string($filerecord, (string)$entry->get_content());
+            }
+            $DB->insert_record('local_kgen_method_file', (object)[
+                'methodid' => $newmethodid,
+                'kind' => $kind,
+                'fileitemid' => $newitemid,
+                'timecreated' => $now,
+            ]);
+        }
+    }
+
+    $transaction->allow_commit();
+    return $newversionid;
+}
 
 $message = '';
 $error = false;
 
 if ($action === 'createdraft' && confirm_sesskey()) {
-    require_capability('local/konzeptgenerator:createdraftset', $syscontext);
+    require_capability('local/seminarplaner:createdraftset', $syscontext);
 
     $shortname = required_param('shortname', PARAM_ALPHANUMEXT);
     $displayname = required_param('displayname', PARAM_TEXT);
@@ -38,7 +120,7 @@ if ($action === 'createdraft' && confirm_sesskey()) {
     try {
         $methodsetid = $repo->create_methodset_draft($shortname, $displayname, $description, (int)$syscontext->id, (int)$USER->id);
         $repo->create_version($methodsetid, 1, 'draft', '{}', (int)$USER->id);
-        $message = get_string('draftcreated', 'local_konzeptgenerator', $methodsetid);
+        $message = get_string('draftcreated', 'local_seminarplaner', $methodsetid);
     } catch (Throwable $e) {
         $message = $e->getMessage();
         $error = true;
@@ -47,7 +129,7 @@ if ($action === 'createdraft' && confirm_sesskey()) {
 
 
 if ($action === 'exportmoddata' && confirm_sesskey()) {
-    require_capability('local/konzeptgenerator:exportglobalset', $syscontext);
+    require_capability('local/seminarplaner:exportglobalset', $syscontext);
     $methodsetid = required_param('methodsetid', PARAM_INT);
     $versionid = optional_param('versionid', 0, PARAM_INT);
 
@@ -59,7 +141,7 @@ if ($action === 'exportmoddata' && confirm_sesskey()) {
         if ($versionid <= 0) {
             $versionid = (int)($set->currentversion ?? 0);
         }
-        local_konzeptgenerator_send_moddata_export((int)$set->id, (int)$versionid, (string)$set->displayname);
+        local_seminarplaner_send_moddata_export((int)$set->id, (int)$versionid, (string)$set->displayname);
     } catch (Throwable $e) {
         $message = $e->getMessage();
         $error = true;
@@ -68,7 +150,7 @@ if ($action === 'exportmoddata' && confirm_sesskey()) {
 
 
 if ($action === 'delete' && confirm_sesskey()) {
-    require_capability('local/konzeptgenerator:archiveglobalset', $syscontext);
+    require_capability('local/seminarplaner:archiveglobalset', $syscontext);
     $methodsetid = required_param('methodsetid', PARAM_INT);
 
     try {
@@ -77,7 +159,7 @@ if ($action === 'delete' && confirm_sesskey()) {
             throw new moodle_exception('invalidparameter');
         }
         $repo->delete_methodset_cascade($methodsetid);
-        $message = get_string('deleteok', 'local_konzeptgenerator', $methodsetid);
+        $message = get_string('deleteok', 'local_seminarplaner', $methodsetid);
     } catch (Throwable $e) {
         $message = $e->getMessage();
         $error = true;
@@ -85,16 +167,16 @@ if ($action === 'delete' && confirm_sesskey()) {
 }
 
 if ($action === 'renamemethodset' && confirm_sesskey()) {
-    if (!has_capability('local/konzeptgenerator:editdraftset', $syscontext) &&
-            !has_capability('local/konzeptgenerator:archiveglobalset', $syscontext)) {
-        throw new required_capability_exception($syscontext, 'local/konzeptgenerator:editdraftset', 'nopermissions', '');
+    if (!has_capability('local/seminarplaner:editdraftset', $syscontext) &&
+            !has_capability('local/seminarplaner:archiveglobalset', $syscontext)) {
+        throw new required_capability_exception($syscontext, 'local/seminarplaner:editdraftset', 'nopermissions', '');
     }
     $methodsetid = required_param('methodsetid', PARAM_INT);
     $newdisplayname = trim((string)optional_param('newdisplayname', '', PARAM_TEXT));
 
     try {
         if ($newdisplayname === '') {
-            throw new moodle_exception('renameerrornoname', 'local_konzeptgenerator');
+            throw new moodle_exception('renameerrornoname', 'local_seminarplaner');
         }
         $methodset = $repo->get_methodset($methodsetid);
         if (!$methodset) {
@@ -106,7 +188,7 @@ if ($action === 'renamemethodset' && confirm_sesskey()) {
             'timemodified' => time(),
             'modifiedby' => (int)$USER->id,
         ]);
-        $message = get_string('renameok', 'local_konzeptgenerator', (object)[
+        $message = get_string('renameok', 'local_seminarplaner', (object)[
             'oldname' => (string)$methodset->displayname,
             'newname' => $newdisplayname,
         ]);
@@ -117,9 +199,9 @@ if ($action === 'renamemethodset' && confirm_sesskey()) {
 }
 
 if ($action === 'importmoddata_newset' && confirm_sesskey()) {
-    require_capability('local/konzeptgenerator:importglobalset', $syscontext);
-    require_capability('local/konzeptgenerator:createdraftset', $syscontext);
-    require_capability('local/konzeptgenerator:editdraftset', $syscontext);
+    require_capability('local/seminarplaner:importglobalset', $syscontext);
+    require_capability('local/seminarplaner:createdraftset', $syscontext);
+    require_capability('local/seminarplaner:editdraftset', $syscontext);
 
     $shortname = required_param('shortname', PARAM_ALPHANUMEXT);
     $displayname = required_param('displayname', PARAM_TEXT);
@@ -127,12 +209,12 @@ if ($action === 'importmoddata_newset' && confirm_sesskey()) {
     $draftitemid = required_param('importfilenew', PARAM_INT);
 
     try {
-        $draftfile = local_konzeptgenerator_get_draft_upload($draftitemid);
+        $draftfile = local_seminarplaner_get_draft_upload($draftitemid);
         if (!$draftfile) {
-            throw new moodle_exception('importerrornofile', 'local_konzeptgenerator');
+            throw new moodle_exception('importerrornofile', 'local_seminarplaner');
         }
 
-        if ((int)$draftfile->get_filesize() > LOCAL_KONZEPTGENERATOR_IMPORT_MAX_BYTES) {
+        if ((int)$draftfile->get_filesize() > LOCAL_SEMINARPLANER_IMPORT_MAX_BYTES) {
             throw new moodle_exception('invalidparameter');
         }
 
@@ -140,7 +222,7 @@ if ($action === 'importmoddata_newset' && confirm_sesskey()) {
         $tmpfilepath = make_request_directory() . '/kgen-import-' . time() . '-' . random_int(1000, 9999);
         file_put_contents($tmpfilepath, (string)$draftfile->get_content());
         try {
-            $payload = local_konzeptgenerator_extract_rows_from_upload($tmpfilepath, $filename);
+            $payload = local_seminarplaner_extract_rows_from_upload($tmpfilepath, $filename);
         } finally {
             @unlink($tmpfilepath);
         }
@@ -148,25 +230,25 @@ if ($action === 'importmoddata_newset' && confirm_sesskey()) {
         $zipfiles = (array)($payload['files'] ?? []);
         $records = [];
         foreach ($rows as $row) {
-            $mapped = local_konzeptgenerator_map_legacy_row($row);
+            $mapped = local_seminarplaner_map_legacy_row($row);
             if ($mapped !== null) {
                 $records[] = $mapped;
             }
         }
         if (!$records) {
-            throw new moodle_exception('importerrornomethods', 'local_konzeptgenerator');
+            throw new moodle_exception('importerrornomethods', 'local_seminarplaner');
         }
 
         $methodsetid = $repo->create_methodset_draft($shortname, $displayname, $description, (int)$syscontext->id, (int)$USER->id);
         $versionid = $repo->create_version($methodsetid, 1, 'draft', '{}', (int)$USER->id);
-        $count = local_konzeptgenerator_import_records_to_set(
+        $count = local_seminarplaner_import_records_to_set(
             (int)$methodsetid,
             (int)$versionid,
             (int)$USER->id,
             $records,
             $zipfiles
         );
-        $message = get_string('importnewsetok', 'local_konzeptgenerator', (object)[
+        $message = get_string('importnewsetok', 'local_seminarplaner', (object)[
             'count' => $count,
             'id' => $methodsetid,
         ]);
@@ -177,8 +259,8 @@ if ($action === 'importmoddata_newset' && confirm_sesskey()) {
 }
 
 if ($action === 'importmoddata_existingset' && confirm_sesskey()) {
-    require_capability('local/konzeptgenerator:importglobalset', $syscontext);
-    require_capability('local/konzeptgenerator:editdraftset', $syscontext);
+    require_capability('local/seminarplaner:importglobalset', $syscontext);
+    require_capability('local/seminarplaner:editdraftset', $syscontext);
     $methodsetid = required_param('methodsetid', PARAM_INT);
     $draftitemid = required_param('importfileexisting', PARAM_INT);
 
@@ -187,15 +269,25 @@ if ($action === 'importmoddata_existingset' && confirm_sesskey()) {
         if (!$methodset) {
             throw new moodle_exception('invalidparameter');
         }
-        if ((string)$methodset->status !== 'draft') {
-            throw new moodle_exception('importerrordraftrequired', 'local_konzeptgenerator');
+        $targetversionid = (int)($methodset->currentversion ?? 0);
+        $setstatus = (string)$methodset->status;
+        if ($setstatus === 'published') {
+            $targetversionid = local_seminarplaner_fork_current_version_to_draft($methodset, (int)$USER->id, $repo);
+            $methodset = $repo->get_methodset($methodsetid);
+            $setstatus = (string)($methodset->status ?? '');
         }
-        $draftfile = local_konzeptgenerator_get_draft_upload($draftitemid);
+        if ($setstatus !== 'draft') {
+            throw new moodle_exception('importerrordraftrequired', 'local_seminarplaner');
+        }
+        if ($targetversionid <= 0) {
+            throw new moodle_exception('invalidparameter');
+        }
+        $draftfile = local_seminarplaner_get_draft_upload($draftitemid);
         if (!$draftfile) {
-            throw new moodle_exception('importerrornofile', 'local_konzeptgenerator');
+            throw new moodle_exception('importerrornofile', 'local_seminarplaner');
         }
 
-        if ((int)$draftfile->get_filesize() > LOCAL_KONZEPTGENERATOR_IMPORT_MAX_BYTES) {
+        if ((int)$draftfile->get_filesize() > LOCAL_SEMINARPLANER_IMPORT_MAX_BYTES) {
             throw new moodle_exception('invalidparameter');
         }
 
@@ -203,7 +295,7 @@ if ($action === 'importmoddata_existingset' && confirm_sesskey()) {
         $tmpfilepath = make_request_directory() . '/kgen-import-' . time() . '-' . random_int(1000, 9999);
         file_put_contents($tmpfilepath, (string)$draftfile->get_content());
         try {
-            $payload = local_konzeptgenerator_extract_rows_from_upload($tmpfilepath, $filename);
+            $payload = local_seminarplaner_extract_rows_from_upload($tmpfilepath, $filename);
         } finally {
             @unlink($tmpfilepath);
         }
@@ -212,23 +304,23 @@ if ($action === 'importmoddata_existingset' && confirm_sesskey()) {
 
         $records = [];
         foreach ($rows as $row) {
-            $mapped = local_konzeptgenerator_map_legacy_row($row);
+            $mapped = local_seminarplaner_map_legacy_row($row);
             if ($mapped !== null) {
                 $records[] = $mapped;
             }
         }
         if (!$records) {
-            throw new moodle_exception('importerrornomethods', 'local_konzeptgenerator');
+            throw new moodle_exception('importerrornomethods', 'local_seminarplaner');
         }
 
-        $count = local_konzeptgenerator_import_records_to_set(
+        $count = local_seminarplaner_import_records_to_set(
             (int)$methodsetid,
-            (int)$methodset->currentversion,
+            $targetversionid,
             (int)$USER->id,
             $records,
             $zipfiles
         );
-        $message = get_string('importok', 'local_konzeptgenerator', $count);
+        $message = get_string('importok', 'local_seminarplaner', $count);
     } catch (Throwable $e) {
         $message = $e->getMessage();
         $error = true;
@@ -236,12 +328,12 @@ if ($action === 'importmoddata_existingset' && confirm_sesskey()) {
 }
 
 if ($action === 'syncallactivities' && confirm_sesskey()) {
-    require_capability('local/konzeptgenerator:publishset', $syscontext);
+    require_capability('local/seminarplaner:publishset', $syscontext);
     try {
-        if (!class_exists('\\mod_konzeptgenerator\\local\\service\\methodset_sync_service')) {
+        if (!class_exists('\\mod_seminarplaner\\local\\service\\methodset_sync_service')) {
             throw new moodle_exception('invalidparameter');
         }
-        $syncservice = new \mod_konzeptgenerator\local\service\methodset_sync_service();
+        $syncservice = new \mod_seminarplaner\local\service\methodset_sync_service();
         $publishedsets = $repo->list_methodsets((int)$syscontext->id, 'published');
         $setcount = 0;
         $updatedactivities = 0;
@@ -253,7 +345,7 @@ if ($action === 'syncallactivities' && confirm_sesskey()) {
             $setcount++;
             $updatedactivities += (int)$syncservice->sync_published_methodset((int)$set->id, $versionid, (int)$USER->id);
         }
-        $message = get_string('syncallactivitiesok', 'local_konzeptgenerator', (object)[
+        $message = get_string('syncallactivitiesok', 'local_seminarplaner', (object)[
             'setcount' => $setcount,
             'activitycount' => $updatedactivities,
         ]);
@@ -267,29 +359,31 @@ $methodsets = $repo->list_methodsets((int)$syscontext->id);
 
 $draftoptions = [];
 foreach ($methodsets as $set) {
-    if ((string)$set->status === 'draft') {
-        $draftoptions[(int)$set->id] = format_string($set->displayname) . ' (#' . (int)$set->id . ')';
+    $status = (string)$set->status;
+    if ($status === 'draft' || $status === 'published') {
+        $label = format_string($set->displayname) . ' (#' . (int)$set->id . ')';
+        $draftoptions[(int)$set->id] = $label;
     }
 }
 
 $maxuploadbytes = get_user_max_upload_file_size($syscontext, $CFG->maxbytes);
 $newsetdraftitemid = file_get_submitted_draft_itemid('importfilenew');
-file_prepare_draft_area($newsetdraftitemid, $syscontext->id, 'local_konzeptgenerator', 'import_upload', 0, [
+file_prepare_draft_area($newsetdraftitemid, $syscontext->id, 'local_seminarplaner', 'import_upload', 0, [
     'subdirs' => 0,
     'maxfiles' => 1,
     'maxbytes' => $maxuploadbytes,
-    'accepted_types' => ['.csv', '.zip'],
+    'accepted_types' => ['.csv', '.zip', '.json'],
 ]);
 $existingdraftitemid = file_get_submitted_draft_itemid('importfileexisting');
-file_prepare_draft_area($existingdraftitemid, $syscontext->id, 'local_konzeptgenerator', 'import_upload', 0, [
+file_prepare_draft_area($existingdraftitemid, $syscontext->id, 'local_seminarplaner', 'import_upload', 0, [
     'subdirs' => 0,
     'maxfiles' => 1,
     'maxbytes' => $maxuploadbytes,
-    'accepted_types' => ['.csv', '.zip'],
+    'accepted_types' => ['.csv', '.zip', '.json'],
 ]);
 
-$newsetform = new \local_konzeptgenerator\form\import_new_set_form(
-    new moodle_url('/local/konzeptgenerator/manage.php'),
+$newsetform = new \local_seminarplaner\form\import_new_set_form(
+    new moodle_url('/local/seminarplaner/manage.php'),
     ['maxbytes' => $maxuploadbytes]
 );
 $newsetform->set_data((object)[
@@ -297,8 +391,8 @@ $newsetform->set_data((object)[
     'importfilenew' => $newsetdraftitemid,
 ]);
 
-$existingsetform = new \local_konzeptgenerator\form\import_existing_set_form(
-    new moodle_url('/local/konzeptgenerator/manage.php'),
+$existingsetform = new \local_seminarplaner\form\import_existing_set_form(
+    new moodle_url('/local/seminarplaner/manage.php'),
     [
         'draftoptions' => $draftoptions,
         'maxbytes' => $maxuploadbytes,
@@ -310,11 +404,11 @@ $existingsetform->set_data((object)[
 ]);
 
 echo $OUTPUT->header();
-echo $OUTPUT->heading(get_string('manageglobalsets', 'local_konzeptgenerator'));
+echo $OUTPUT->heading(get_string('manageglobalsets', 'local_seminarplaner'));
 echo html_writer::start_div('kg-row');
 echo html_writer::link(
-    new moodle_url('/local/konzeptgenerator/reviewrequests.php'),
-    get_string('reviewrequestspage', 'local_konzeptgenerator'),
+    new moodle_url('/local/seminarplaner/reviewrequests.php'),
+    get_string('reviewrequestspage', 'local_seminarplaner'),
     ['class' => 'kg-btn kg-btn-primary']
 );
 echo html_writer::end_div();
@@ -357,17 +451,29 @@ echo html_writer::tag('style', '
 .kg-modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
 .kg-inline-rename{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .kg-inline-rename input[type=\"text\"]{min-width:180px;max-width:260px;padding:8px;border:1px solid #d1d5db;border-radius:8px}
-.kg-btn,.kg-admin-card input[type=\"submit\"],.kg-admin-card button,.kg-row .kg-btn{
+.kg-shortname-cell{display:flex;flex-direction:column;gap:6px}
+.kg-name-with-edit{display:inline-flex;align-items:center;gap:6px}
+.kg-name-edit-btn{display:inline-flex;align-items:center;justify-content:center;padding:0;margin:0;border:0;background:transparent;color:#646464;cursor:pointer}
+.kg-name-edit-btn:hover{border:0;background:transparent;color:#2F80AB}
+.kg-name-edit-btn .icon{margin:0}
+.kg-inline-rename .kg-btn{margin-top:0;margin-bottom:0}
+.kg-btn,.kg-admin-card input[type=\"submit\"],.kg-admin-card button:not(.kg-name-edit-btn),.kg-row .kg-btn{
   display:inline-flex;align-items:center;justify-content:center;gap:6px;
-  min-height:36px;padding:8px 12px;border:1px solid #005ca9;border-radius:8px;
-  background:#005ca9;color:#fff;text-decoration:none;cursor:pointer;
+  min-height:36px;padding:8px 12px;border:1px solid #E3051B;border-radius:8px;
+  background:#E3051B;color:#fff;text-decoration:none;cursor:pointer;
   margin-top:8px;margin-bottom:8px
 }
-.kg-btn:hover,.kg-admin-card input[type=\"submit\"]:hover,.kg-admin-card button:hover,.kg-row .kg-btn:hover{
-  background:#004a87;border-color:#004a87;color:#fff;text-decoration:none
+.kg-btn:hover,.kg-admin-card input[type=\"submit\"]:hover,.kg-admin-card button:not(.kg-name-edit-btn):hover,.kg-row .kg-btn:hover{
+  background:#882A30;border-color:#882A30;color:#fff;text-decoration:none
 }
 .kg-admin-card input[type=\"submit\"]:disabled,.kg-admin-card button:disabled{
   background:#fff;border-color:#c5ccd3;color:#6b7280;cursor:not-allowed
+}
+.kg-admin-card .fitem_actionbuttons .btn-primary{
+  border-color:#E3051B;background:#E3051B;color:#fff
+}
+.kg-admin-card .fitem_actionbuttons .btn-primary:hover,.kg-admin-card .fitem_actionbuttons .btn-primary:focus{
+  border-color:#882A30;background:#882A30;color:#fff
 }
 ');
 
@@ -377,63 +483,16 @@ if ($message !== '') {
 
 echo html_writer::start_div('kg-admin-grid');
 
-if (has_capability('local/konzeptgenerator:createdraftset', $syscontext)) {
-    echo html_writer::start_div('kg-admin-card');
-    echo html_writer::tag('h3', get_string('createdraftset', 'local_konzeptgenerator'));
-    echo html_writer::start_tag('form', ['method' => 'post', 'action' => (new moodle_url('/local/konzeptgenerator/manage.php'))->out(false)]);
-    echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
-    echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'createdraft']);
-    echo html_writer::start_div('kg-admin-row');
-    echo html_writer::label(get_string('name'), 'kg-name');
-    echo html_writer::empty_tag('input', ['id' => 'kg-name', 'type' => 'text', 'name' => 'displayname', 'required' => 'required']);
-    echo html_writer::tag('small', $nameexplainertext);
-    echo html_writer::end_div();
-    echo html_writer::start_div('kg-admin-row');
-    echo html_writer::label(get_string('shortname'), 'kg-short');
-    echo html_writer::empty_tag('input', ['id' => 'kg-short', 'type' => 'text', 'name' => 'shortname', 'required' => 'required']);
-    echo html_writer::tag('small', $shortnameexplainertext);
-    echo html_writer::end_div();
-    echo html_writer::start_div('kg-admin-row');
-    echo html_writer::label(get_string('description'), 'kg-desc');
-    echo html_writer::tag('textarea', '', ['id' => 'kg-desc', 'name' => 'description', 'rows' => 3]);
-    echo html_writer::end_div();
-    echo html_writer::start_div('kg-admin-actions');
-    echo html_writer::empty_tag('input', ['type' => 'submit', 'value' => get_string('savechanges')]);
-    echo html_writer::end_div();
-    echo html_writer::end_tag('form');
-    echo html_writer::end_div();
-}
-
-if (has_capability('local/konzeptgenerator:importglobalset', $syscontext)) {
-    echo html_writer::start_div('kg-admin-card');
-
-    echo html_writer::tag('h4', get_string('importnewsettitle', 'local_konzeptgenerator'));
-    echo html_writer::tag('p', get_string('importnewset_desc', 'local_konzeptgenerator'));
-    echo html_writer::tag('p', get_string('importstep1newset', 'local_konzeptgenerator'));
-    echo html_writer::tag('p', get_string('importstep2file', 'local_konzeptgenerator'));
-    echo html_writer::tag('p', get_string('importstep3run', 'local_konzeptgenerator'));
-    $newsetform->display();
-
-    echo html_writer::empty_tag('hr');
-    echo html_writer::tag('h4', get_string('importexistingsettitle', 'local_konzeptgenerator'));
-    echo html_writer::tag('p', get_string('importexistingset_desc', 'local_konzeptgenerator'));
-    echo html_writer::tag('p', get_string('importstep1existingset', 'local_konzeptgenerator'));
-    echo html_writer::tag('p', get_string('importstep2file', 'local_konzeptgenerator'));
-    echo html_writer::tag('p', get_string('importstep3run', 'local_konzeptgenerator'));
-    $existingsetform->display();
-    echo html_writer::end_div();
-}
-
 echo html_writer::start_div('kg-admin-card');
-echo html_writer::tag('h3', get_string('globalmethodsets', 'local_konzeptgenerator'));
-if (has_capability('local/konzeptgenerator:publishset', $syscontext)) {
-    echo html_writer::start_tag('form', ['method' => 'post', 'action' => (new moodle_url('/local/konzeptgenerator/manage.php'))->out(false)]);
+echo html_writer::tag('h3', get_string('globalmethodsets', 'local_seminarplaner'));
+if (has_capability('local/seminarplaner:publishset', $syscontext)) {
+    echo html_writer::start_tag('form', ['method' => 'post', 'action' => (new moodle_url('/local/seminarplaner/manage.php'))->out(false)]);
     echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
     echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'syncallactivities']);
     echo html_writer::empty_tag('input', [
         'type' => 'submit',
         'class' => 'kg-btn',
-        'value' => get_string('syncallactivities', 'local_konzeptgenerator'),
+        'value' => get_string('syncallactivities', 'local_seminarplaner'),
     ]);
     echo html_writer::end_tag('form');
 }
@@ -441,10 +500,10 @@ if (has_capability('local/konzeptgenerator:publishset', $syscontext)) {
 $table = new html_table();
 $table->head = [
     'ID',
-    get_string('shortname'),
     get_string('name'),
-    get_string('methodcountcol', 'local_konzeptgenerator'),
-    get_string('publishedbycol', 'local_konzeptgenerator'),
+    get_string('shortname'),
+    'Anzahl Methoden',
+    get_string('publishedbycol', 'local_seminarplaner'),
     get_string('status', 'moodle'),
     get_string('actions'),
 ];
@@ -495,48 +554,73 @@ foreach ($methodsets as $set) {
         }
     }
 
-    if (has_capability('local/konzeptgenerator:archiveglobalset', $syscontext)) {
-        $actions[] = html_writer::link(new moodle_url('/local/konzeptgenerator/manage.php', [
+    if (has_capability('local/seminarplaner:archiveglobalset', $syscontext)) {
+        $actions[] = html_writer::link(new moodle_url('/local/seminarplaner/manage.php', [
             'action' => 'delete',
             'sesskey' => sesskey(),
             'methodsetid' => $set->id,
-        ]), get_string('deletemethodset', 'local_konzeptgenerator'), [
+        ]), get_string('deletemethodset', 'local_seminarplaner'), [
             'class' => 'kg-action-link',
-            'onclick' => "return confirm(" . json_encode(get_string('deleteconfirm', 'local_konzeptgenerator', $set->displayname)) . ");",
+            'onclick' => "return confirm(" . json_encode(get_string('deleteconfirm', 'local_seminarplaner', $set->displayname)) . ");",
         ]);
     }
 
-    if (has_capability('local/konzeptgenerator:editdraftset', $syscontext) ||
-            has_capability('local/konzeptgenerator:archiveglobalset', $syscontext)) {
+    $canrename = has_capability('local/seminarplaner:editdraftset', $syscontext) ||
+        has_capability('local/seminarplaner:archiveglobalset', $syscontext);
+    $renameform = '';
+    $namecell = s($set->displayname);
+    if ($canrename) {
+        $renameformid = 'kg-inline-rename-' . (int)$set->id;
+        $renameinputid = 'kg-inline-rename-input-' . (int)$set->id;
         $renameform = html_writer::start_tag('form', [
             'method' => 'post',
-            'action' => (new moodle_url('/local/konzeptgenerator/manage.php'))->out(false),
-            'class' => 'kg-inline-rename',
+            'action' => (new moodle_url('/local/seminarplaner/manage.php'))->out(false),
+            'class' => 'kg-inline-rename kg-hidden',
+            'id' => $renameformid,
         ]);
         $renameform .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
         $renameform .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'renamemethodset']);
         $renameform .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'methodsetid', 'value' => (int)$set->id]);
         $renameform .= html_writer::empty_tag('input', [
             'type' => 'text',
+            'id' => $renameinputid,
             'name' => 'newdisplayname',
             'value' => (string)$set->displayname,
             'maxlength' => 255,
             'required' => 'required',
-            'aria-label' => get_string('renamemethodset', 'local_konzeptgenerator'),
+            'data-kg-rename-input' => '1',
+            'aria-label' => get_string('renamemethodset', 'local_seminarplaner'),
         ]);
         $renameform .= html_writer::empty_tag('input', [
             'type' => 'submit',
-            'value' => get_string('renamemethodset', 'local_konzeptgenerator'),
+            'value' => get_string('renamemethodset', 'local_seminarplaner'),
             'class' => 'kg-btn',
         ]);
         $renameform .= html_writer::end_tag('form');
-        $actions[] = $renameform;
+
+        $editbutton = html_writer::tag('button',
+            $OUTPUT->pix_icon('t/editstring', get_string('edit')),
+            [
+                'type' => 'button',
+                'class' => 'kg-name-edit-btn',
+                'data-kg-rename-toggle' => $renameformid,
+                'aria-controls' => $renameformid,
+                'aria-label' => get_string('renamemethodset', 'local_seminarplaner'),
+            ]
+        );
+        $namecell = html_writer::tag('span', s($set->displayname) . $editbutton, ['class' => 'kg-name-with-edit']);
     }
+    $shortnamecell = html_writer::start_div('kg-shortname-cell');
+    $shortnamecell .= html_writer::tag('span', s($set->shortname));
+    if ($renameform !== '') {
+        $shortnamecell .= $renameform;
+    }
+    $shortnamecell .= html_writer::end_div();
 
     $table->data[] = [
         $set->id,
-        s($set->shortname),
-        s($set->displayname),
+        $namecell,
+        $shortnamecell,
         $methodcount,
         s($publishedbyname),
         s($set->status),
@@ -546,6 +630,29 @@ foreach ($methodsets as $set) {
 
 echo html_writer::table($table);
 echo html_writer::end_div();
+echo html_writer::script("\n(function() {\n    document.querySelectorAll('[data-kg-rename-toggle]').forEach(function(btn) {\n        btn.addEventListener('click', function() {\n            var targetid = btn.getAttribute('data-kg-rename-toggle');\n            if (!targetid) {\n                return;\n            }\n            var form = document.getElementById(targetid);\n            if (!form) {\n                return;\n            }\n            form.classList.toggle('kg-hidden');\n            if (!form.classList.contains('kg-hidden')) {\n                var input = form.querySelector('[data-kg-rename-input]');\n                if (input) {\n                    input.focus();\n                    if (input.select) {\n                        input.select();\n                    }\n                }\n            }\n        });\n    });\n})();\n");
+
+if (has_capability('local/seminarplaner:importglobalset', $syscontext)) {
+    echo html_writer::start_div('kg-admin-card');
+
+    echo html_writer::tag('h4', get_string('importnewsettitle', 'local_seminarplaner'));
+    echo html_writer::tag('p', get_string('importnewset_desc', 'local_seminarplaner'));
+    echo html_writer::tag('p', get_string('importstep1newset', 'local_seminarplaner'));
+    echo html_writer::tag('p', get_string('importstep2file', 'local_seminarplaner'));
+    echo html_writer::tag('p', get_string('importstep3run', 'local_seminarplaner'));
+    $newsetform->display();
+    echo html_writer::end_div();
+
+    echo html_writer::start_div('kg-admin-card');
+    echo html_writer::tag('h4', get_string('importexistingsettitle', 'local_seminarplaner'));
+    echo html_writer::tag('p', get_string('importexistingset_desc', 'local_seminarplaner'));
+    echo html_writer::tag('p', get_string('importstep1existingset', 'local_seminarplaner'));
+    echo html_writer::tag('p', get_string('importstep2file', 'local_seminarplaner'));
+    echo html_writer::tag('p', get_string('importstep3run', 'local_seminarplaner'));
+    $existingsetform->display();
+    echo html_writer::end_div();
+}
+
 echo html_writer::end_div();
 
 echo $OUTPUT->footer();

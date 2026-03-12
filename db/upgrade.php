@@ -4,12 +4,12 @@
 defined('MOODLE_INTERNAL') || die();
 
 /**
- * Upgrade script for local_konzeptgenerator.
+ * Upgrade script for local_seminarplaner.
  *
  * @param int $oldversion
  * @return bool
  */
-function xmldb_local_konzeptgenerator_upgrade($oldversion) {
+function xmldb_local_seminarplaner_upgrade($oldversion) {
     global $DB;
 
     $dbman = $DB->get_manager();
@@ -32,7 +32,7 @@ function xmldb_local_konzeptgenerator_upgrade($oldversion) {
             $dbman->create_table($table);
         }
 
-        upgrade_plugin_savepoint(true, 2026022303, 'local', 'konzeptgenerator');
+        upgrade_plugin_savepoint(true, 2026022303, 'local', 'seminarplaner');
     }
 
     if ($oldversion < 2026022304) {
@@ -56,7 +56,7 @@ function xmldb_local_konzeptgenerator_upgrade($oldversion) {
             $dbman->create_table($table);
         }
 
-        upgrade_plugin_savepoint(true, 2026022304, 'local', 'konzeptgenerator');
+        upgrade_plugin_savepoint(true, 2026022304, 'local', 'seminarplaner');
     }
 
     return true;

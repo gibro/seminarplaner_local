@@ -4,7 +4,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $capabilities = [
-    'local/konzeptgenerator:viewglobalsets' => [
+    'local/seminarplaner:viewglobalsets' => [
         'captype' => 'read',
         'contextlevel' => CONTEXT_COURSECAT,
         'archetypes' => [
@@ -13,59 +13,59 @@ $capabilities = [
             'manager' => CAP_ALLOW,
         ],
     ],
-    'local/konzeptgenerator:createdraftset' => [
+    'local/seminarplaner:createdraftset' => [
         'captype' => 'write',
         'contextlevel' => CONTEXT_COURSECAT,
         'archetypes' => [
             'manager' => CAP_ALLOW,
         ],
     ],
-    'local/konzeptgenerator:editdraftset' => [
+    'local/seminarplaner:editdraftset' => [
         'captype' => 'write',
         'contextlevel' => CONTEXT_COURSECAT,
         'archetypes' => [
             'manager' => CAP_ALLOW,
         ],
     ],
-    'local/konzeptgenerator:submitforreview' => [
+    'local/seminarplaner:submitforreview' => [
         'captype' => 'write',
         'contextlevel' => CONTEXT_COURSECAT,
         'archetypes' => [
             'manager' => CAP_ALLOW,
         ],
     ],
-    'local/konzeptgenerator:reviewset' => [
+    'local/seminarplaner:reviewset' => [
         'captype' => 'write',
         'contextlevel' => CONTEXT_COURSECAT,
         'archetypes' => [
             'manager' => CAP_ALLOW,
         ],
     ],
-    'local/konzeptgenerator:publishset' => [
+    'local/seminarplaner:publishset' => [
         'captype' => 'write',
         'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => [],
     ],
-    'local/konzeptgenerator:archiveglobalset' => [
+    'local/seminarplaner:archiveglobalset' => [
         'captype' => 'write',
         'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => [],
     ],
-    'local/konzeptgenerator:manageareascopes' => [
+    'local/seminarplaner:manageareascopes' => [
         'captype' => 'write',
         'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => [
             'manager' => CAP_ALLOW,
         ],
     ],
-    'local/konzeptgenerator:importglobalset' => [
+    'local/seminarplaner:importglobalset' => [
         'captype' => 'write',
         'contextlevel' => CONTEXT_COURSECAT,
         'archetypes' => [
             'manager' => CAP_ALLOW,
         ],
     ],
-    'local/konzeptgenerator:exportglobalset' => [
+    'local/seminarplaner:exportglobalset' => [
         'captype' => 'read',
         'contextlevel' => CONTEXT_COURSECAT,
         'archetypes' => [

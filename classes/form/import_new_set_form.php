@@ -1,7 +1,7 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
 
-namespace local_konzeptgenerator\form;
+namespace local_seminarplaner\form;
 
 use moodleform;
 
@@ -34,13 +34,13 @@ class import_new_set_form extends moodleform {
         $mform->addElement('textarea', 'description', get_string('description'), ['rows' => 2]);
         $mform->setType('description', PARAM_TEXT);
 
-        $mform->addElement('filemanager', 'importfilenew', get_string('importfile', 'local_konzeptgenerator'), null, [
+        $mform->addElement('filemanager', 'importfilenew', get_string('importfile', 'local_seminarplaner'), null, [
             'subdirs' => 0,
             'maxfiles' => 1,
-            'accepted_types' => ['.csv', '.zip'],
+            'accepted_types' => ['.csv', '.zip', '.json'],
             'maxbytes' => $maxbytes,
         ]);
 
-        $this->add_action_buttons(false, get_string('importnewsetsubmit', 'local_konzeptgenerator'));
+        $this->add_action_buttons(false, get_string('importnewsetsubmit', 'local_seminarplaner'));
     }
 }

@@ -3,13 +3,13 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-use local_konzeptgenerator\local\repository\methodset_repository;
-use local_konzeptgenerator\local\service\workflow_service;
+use local_seminarplaner\local\repository\methodset_repository;
+use local_seminarplaner\local\service\workflow_service;
 
 /**
  * DB-backed tests for workflow service.
  */
-final class local_konzeptgenerator_workflow_service_test extends advanced_testcase {
+final class local_seminarplaner_workflow_service_test extends advanced_testcase {
     public function test_transition_draft_to_review_to_published(): void {
         $this->resetAfterTest(true);
 

@@ -1,12 +1,12 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
 
-/** @var int Max bytes for one import upload payload (CSV or ZIP). */
-const LOCAL_KONZEPTGENERATOR_IMPORT_MAX_BYTES = 20971520; // 20 MB.
+/** @var int Max bytes for one import upload payload (CSV, ZIP or JSON). */
+const LOCAL_SEMINARPLANER_IMPORT_MAX_BYTES = 20971520; // 20 MB.
 /** @var int Max ZIP entries to process to reduce ZIP bomb impact. */
-const LOCAL_KONZEPTGENERATOR_IMPORT_MAX_ZIP_ENTRIES = 2000;
+const LOCAL_SEMINARPLANER_IMPORT_MAX_ZIP_ENTRIES = 2000;
 /** @var int Max parsed CSV rows per upload. */
-const LOCAL_KONZEPTGENERATOR_IMPORT_MAX_ROWS = 5000;
+const LOCAL_SEMINARPLANER_IMPORT_MAX_ROWS = 5000;
 
 /**
  * Split legacy multi-value text into normalized lines.
@@ -14,7 +14,7 @@ const LOCAL_KONZEPTGENERATOR_IMPORT_MAX_ROWS = 5000;
  * @param string $value Raw field value.
  * @return array
  */
-function local_konzeptgenerator_split_multi(string $value): array {
+function local_seminarplaner_split_multi(string $value): array {
     if ($value === '') {
         return [];
     }
@@ -36,7 +36,7 @@ function local_konzeptgenerator_split_multi(string $value): array {
  * @param array $keys Key candidates.
  * @return string
  */
-function local_konzeptgenerator_row_first(array $row, array $keys): string {
+function local_seminarplaner_row_first(array $row, array $keys): string {
     foreach ($keys as $key) {
         if (!array_key_exists($key, $row)) {
             continue;
@@ -55,7 +55,7 @@ function local_konzeptgenerator_row_first(array $row, array $keys): string {
  * @param string $value Field value.
  * @return array
  */
-function local_konzeptgenerator_parse_h5p_filenames(string $value): array {
+function local_seminarplaner_parse_h5p_filenames(string $value): array {
     $value = trim($value);
     if ($value === '') {
         return [];
@@ -74,7 +74,162 @@ function local_konzeptgenerator_parse_h5p_filenames(string $value): array {
         return array_values(array_unique($out));
     }
 
-    return local_konzeptgenerator_split_multi($value);
+    return local_seminarplaner_split_multi($value);
+}
+
+/**
+ * Normalize JSON value to a flat string list.
+ *
+ * @param mixed $value JSON value.
+ * @return array<int, string>
+ */
+function local_seminarplaner_json_value_list($value): array {
+    if ($value === null) {
+        return [];
+    }
+    if (is_string($value) || is_numeric($value) || is_bool($value)) {
+        $text = trim((string)$value);
+        return $text === '' ? [] : [$text];
+    }
+    if (is_object($value)) {
+        $value = (array)$value;
+    }
+    if (!is_array($value)) {
+        return [];
+    }
+
+    $out = [];
+    foreach ($value as $item) {
+        if (is_string($item) || is_numeric($item) || is_bool($item)) {
+            $text = trim((string)$item);
+            if ($text !== '') {
+                $out[] = $text;
+            }
+            continue;
+        }
+        if (is_object($item)) {
+            $item = (array)$item;
+        }
+        if (!is_array($item)) {
+            continue;
+        }
+        foreach (['filename', 'name', 'title', 'label'] as $key) {
+            if (!array_key_exists($key, $item)) {
+                continue;
+            }
+            $text = trim((string)$item[$key]);
+            if ($text !== '') {
+                $out[] = $text;
+                continue 2;
+            }
+        }
+        if (!empty($item['fileurl'])) {
+            $path = (string)parse_url((string)$item['fileurl'], PHP_URL_PATH);
+            $basename = trim((string)basename($path));
+            if ($basename !== '' && $basename !== '/') {
+                $out[] = $basename;
+            }
+        }
+    }
+    return array_values(array_unique($out));
+}
+
+/**
+ * Read first non-empty scalar-like field from JSON row.
+ *
+ * @param array<string, mixed> $row JSON row.
+ * @param array<int, string> $keys Candidate keys.
+ * @return string
+ */
+function local_seminarplaner_json_row_first_scalar(array $row, array $keys): string {
+    foreach ($keys as $key) {
+        if (!array_key_exists($key, $row)) {
+            continue;
+        }
+        $values = local_seminarplaner_json_value_list($row[$key]);
+        if (!empty($values)) {
+            return (string)$values[0];
+        }
+    }
+    return '';
+}
+
+/**
+ * Read first non-empty multi-value field from JSON row and join with ##.
+ *
+ * @param array<string, mixed> $row JSON row.
+ * @param array<int, string> $keys Candidate keys.
+ * @return string
+ */
+function local_seminarplaner_json_row_first_multi(array $row, array $keys): string {
+    foreach ($keys as $key) {
+        if (!array_key_exists($key, $row)) {
+            continue;
+        }
+        $values = local_seminarplaner_json_value_list($row[$key]);
+        if (!empty($values)) {
+            return implode('##', $values);
+        }
+    }
+    return '';
+}
+
+/**
+ * Parse JSON export payload from mod/seminarplaner into legacy row format.
+ *
+ * @param string $jsontext JSON source.
+ * @return array<int, array<string, string>>
+ */
+function local_seminarplaner_parse_json_methods(string $jsontext): array {
+    try {
+        $decoded = json_decode($jsontext, true, 512, JSON_THROW_ON_ERROR);
+    } catch (Throwable $e) {
+        throw new moodle_exception('importerrorfiletype', 'local_seminarplaner');
+    }
+    if (!is_array($decoded)) {
+        throw new moodle_exception('importerrorfiletype', 'local_seminarplaner');
+    }
+    if (array_key_exists('methods', $decoded)) {
+        $decoded = $decoded['methods'];
+    }
+    if (!is_array($decoded)) {
+        throw new moodle_exception('importerrorfiletype', 'local_seminarplaner');
+    }
+
+    $rows = [];
+    foreach ($decoded as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $title = local_seminarplaner_json_row_first_scalar($item, ['titel', 'title', 'Titel', 'Name']);
+        if ($title === '') {
+            continue;
+        }
+        $rows[] = [
+            'Titel' => $title,
+            'Seminarphase' => local_seminarplaner_json_row_first_multi($item, ['seminarphase', 'Seminarphase']),
+            'Zeitbedarf' => local_seminarplaner_json_row_first_scalar($item, ['zeitbedarf', 'Zeitbedarf']),
+            'Gruppengröße' => local_seminarplaner_json_row_first_scalar($item, ['gruppengroesse', 'Gruppengroesse', 'Gruppengröße']),
+            'Kurzbeschreibung' => local_seminarplaner_json_row_first_scalar($item, ['kurzbeschreibung', 'Kurzbeschreibung']),
+            'Autor*in / Kontakt' => local_seminarplaner_json_row_first_scalar($item, ['autor', 'autor_kontakt', 'Autor*in / Kontakt']),
+            'Lernziele (Ich-kann ...)' => local_seminarplaner_json_row_first_scalar($item, ['lernziele', 'Lernziele (Ich-kann ...)']),
+            'Komplexitätsgrad' => local_seminarplaner_json_row_first_scalar($item, ['komplexitaet', 'Komplexitätsgrad']),
+            'Vorbereitung nötig' => local_seminarplaner_json_row_first_scalar($item, ['vorbereitung', 'Vorbereitung nötig']),
+            'Raumanforderungen' => local_seminarplaner_json_row_first_multi($item, ['raum', 'raumanforderungen', 'Raumanforderungen']),
+            'Sozialform' => local_seminarplaner_json_row_first_multi($item, ['sozialform', 'Sozialform']),
+            'Risiken/Tipps' => local_seminarplaner_json_row_first_scalar($item, ['risiken', 'risiken_tipps', 'Risiken/Tipps']),
+            'Debrief/Reflexionsfragen' => local_seminarplaner_json_row_first_scalar($item, ['debrief', 'Debrief/Reflexionsfragen']),
+            'Materialien' => local_seminarplaner_json_row_first_multi($item, ['materialien', 'Materialien']),
+            'Material/Technik' => local_seminarplaner_json_row_first_scalar($item, ['materialtechnik', 'material_technik', 'Material/Technik']),
+            'Ablauf' => local_seminarplaner_json_row_first_scalar($item, ['ablauf', 'Ablauf']),
+            'Tags / Schlüsselworte' => local_seminarplaner_json_row_first_scalar($item, ['tags', 'Tags / Schlüsselworte']),
+            'Kognitive Dimension' => local_seminarplaner_json_row_first_multi($item, ['kognitive', 'kognitive_dimension', 'Kognitive Dimension']),
+        ];
+        if (count($rows) > LOCAL_SEMINARPLANER_IMPORT_MAX_ROWS) {
+            throw new moodle_exception('invalidparameter');
+        }
+    }
+    return $rows;
 }
 
 /**
@@ -83,32 +238,32 @@ function local_konzeptgenerator_parse_h5p_filenames(string $value): array {
  * @param array $row CSV row.
  * @return array|null
  */
-function local_konzeptgenerator_map_legacy_row(array $row): ?array {
-    $title = local_konzeptgenerator_row_first($row, ['Titel', 'title', 'Name']);
+function local_seminarplaner_map_legacy_row(array $row): ?array {
+    $title = local_seminarplaner_row_first($row, ['Titel', 'title', 'Name']);
     if ($title === '') {
         return null;
     }
 
     return [
         'title' => $title,
-        'seminarphase' => implode('##', local_konzeptgenerator_split_multi(local_konzeptgenerator_row_first($row, ['Seminarphase', 'seminarphase']))),
-        'zeitbedarf' => local_konzeptgenerator_row_first($row, ['Zeitbedarf', 'zeitbedarf']),
-        'gruppengroesse' => local_konzeptgenerator_row_first($row, ['Gruppengröße', 'Gruppengroesse', 'gruppengroesse']),
-        'kurzbeschreibung' => local_konzeptgenerator_row_first($row, ['Kurzbeschreibung', 'kurzbeschreibung']),
-        'ablauf' => local_konzeptgenerator_row_first($row, ['Ablauf', 'ablauf']),
-        'lernziele' => local_konzeptgenerator_row_first($row, ['Lernziele (Ich-kann ...)', 'lernziele']),
-        'komplexitaetsgrad' => local_konzeptgenerator_row_first($row, ['Komplexitätsgrad', 'Komplexitaetsgrad', 'komplexitaet']),
-        'vorbereitung' => local_konzeptgenerator_row_first($row, ['Vorbereitung nötig', 'Vorbereitung noetig', 'vorbereitung']),
-        'raumanforderungen' => implode('##', local_konzeptgenerator_split_multi(local_konzeptgenerator_row_first($row, ['Raumanforderungen', 'raumanforderungen']))),
-        'sozialform' => implode('##', local_konzeptgenerator_split_multi(local_konzeptgenerator_row_first($row, ['Sozialform', 'sozialform']))),
-        'risiken_tipps' => local_konzeptgenerator_row_first($row, ['Risiken/Tipps', 'risiken_tipps', 'risiken']),
-        'debrief' => local_konzeptgenerator_row_first($row, ['Debrief/Reflexionsfragen', 'debrief']),
-        'material_technik' => local_konzeptgenerator_row_first($row, ['Material/Technik', 'material_technik', 'materialtechnik']),
-        'tags' => local_konzeptgenerator_row_first($row, ['Tags / Schlüsselworte', 'Tags / Schluesselworte', 'tags', 'Tags']),
-        'kognitive_dimension' => implode('##', local_konzeptgenerator_split_multi(local_konzeptgenerator_row_first($row, ['Kognitive Dimension', 'kognitive_dimension', 'kognitive']))),
-        'autor_kontakt' => local_konzeptgenerator_row_first($row, ['Autor*in / Kontakt', 'Autor/in / Kontakt', 'autor_kontakt', 'autor']),
-        '__materialfiles' => local_konzeptgenerator_split_multi(local_konzeptgenerator_row_first($row, ['Materialien', 'materialien'])),
-        '__h5pfiles' => local_konzeptgenerator_parse_h5p_filenames(local_konzeptgenerator_row_first($row, ['H5P-Inhalt', 'h5p'])),
+        'seminarphase' => implode('##', local_seminarplaner_split_multi(local_seminarplaner_row_first($row, ['Seminarphase', 'seminarphase']))),
+        'zeitbedarf' => local_seminarplaner_row_first($row, ['Zeitbedarf', 'zeitbedarf']),
+        'gruppengroesse' => local_seminarplaner_row_first($row, ['Gruppengröße', 'Gruppengroesse', 'gruppengroesse']),
+        'kurzbeschreibung' => local_seminarplaner_row_first($row, ['Kurzbeschreibung', 'kurzbeschreibung']),
+        'ablauf' => local_seminarplaner_row_first($row, ['Ablauf', 'ablauf']),
+        'lernziele' => local_seminarplaner_row_first($row, ['Lernziele (Ich-kann ...)', 'lernziele']),
+        'komplexitaetsgrad' => local_seminarplaner_row_first($row, ['Komplexitätsgrad', 'Komplexitaetsgrad', 'komplexitaet']),
+        'vorbereitung' => local_seminarplaner_row_first($row, ['Vorbereitung nötig', 'Vorbereitung noetig', 'vorbereitung']),
+        'raumanforderungen' => implode('##', local_seminarplaner_split_multi(local_seminarplaner_row_first($row, ['Raumanforderungen', 'raumanforderungen']))),
+        'sozialform' => implode('##', local_seminarplaner_split_multi(local_seminarplaner_row_first($row, ['Sozialform', 'sozialform']))),
+        'risiken_tipps' => local_seminarplaner_row_first($row, ['Risiken/Tipps', 'risiken_tipps', 'risiken']),
+        'debrief' => local_seminarplaner_row_first($row, ['Debrief/Reflexionsfragen', 'debrief']),
+        'material_technik' => local_seminarplaner_row_first($row, ['Material/Technik', 'material_technik', 'materialtechnik']),
+        'tags' => local_seminarplaner_row_first($row, ['Tags / Schlüsselworte', 'Tags / Schluesselworte', 'tags', 'Tags']),
+        'kognitive_dimension' => implode('##', local_seminarplaner_split_multi(local_seminarplaner_row_first($row, ['Kognitive Dimension', 'kognitive_dimension', 'kognitive']))),
+        'autor_kontakt' => local_seminarplaner_row_first($row, ['Autor*in / Kontakt', 'Autor/in / Kontakt', 'autor_kontakt', 'autor']),
+        '__materialfiles' => local_seminarplaner_split_multi(local_seminarplaner_row_first($row, ['Materialien', 'materialien'])),
+        '__h5pfiles' => local_seminarplaner_parse_h5p_filenames(local_seminarplaner_row_first($row, ['H5P-Inhalt', 'h5p'])),
     ];
 }
 
@@ -118,7 +273,7 @@ function local_konzeptgenerator_map_legacy_row(array $row): ?array {
  * @param string $csvtext CSV source.
  * @return array
  */
-function local_konzeptgenerator_parse_csv(string $csvtext): array {
+function local_seminarplaner_parse_csv(string $csvtext): array {
     $csvtext = preg_replace('/^\xEF\xBB\xBF/', '', $csvtext);
     $lines = preg_split('/\r\n|\n|\r/', $csvtext);
     $firstline = (string)($lines[0] ?? '');
@@ -157,7 +312,7 @@ function local_konzeptgenerator_parse_csv(string $csvtext): array {
         }
         if (trim(implode('', $row)) !== '') {
             $rows[] = $row;
-            if (count($rows) > LOCAL_KONZEPTGENERATOR_IMPORT_MAX_ROWS) {
+            if (count($rows) > LOCAL_SEMINARPLANER_IMPORT_MAX_ROWS) {
                 fclose($fp);
                 throw new moodle_exception('invalidparameter');
             }
@@ -174,12 +329,12 @@ function local_konzeptgenerator_parse_csv(string $csvtext): array {
  * @param string $filename Uploaded filename.
  * @return array
  */
-function local_konzeptgenerator_extract_rows_from_upload(string $filepath, string $filename): array {
+function local_seminarplaner_extract_rows_from_upload(string $filepath, string $filename): array {
     if (!is_readable($filepath)) {
-        throw new moodle_exception('importerrornofile', 'local_konzeptgenerator');
+        throw new moodle_exception('importerrornofile', 'local_seminarplaner');
     }
     $filesize = @filesize($filepath);
-    if ($filesize !== false && (int)$filesize > LOCAL_KONZEPTGENERATOR_IMPORT_MAX_BYTES) {
+    if ($filesize !== false && (int)$filesize > LOCAL_SEMINARPLANER_IMPORT_MAX_BYTES) {
         throw new moodle_exception('invalidparameter');
     }
 
@@ -187,24 +342,31 @@ function local_konzeptgenerator_extract_rows_from_upload(string $filepath, strin
     if (substr($name, -4) === '.csv') {
         $csvcontent = (string)file_get_contents($filepath);
         return [
-            'rows' => local_konzeptgenerator_parse_csv($csvcontent),
+            'rows' => local_seminarplaner_parse_csv($csvcontent),
+            'files' => [],
+        ];
+    }
+    if (substr($name, -5) === '.json') {
+        $jsoncontent = (string)file_get_contents($filepath);
+        return [
+            'rows' => local_seminarplaner_parse_json_methods($jsoncontent),
             'files' => [],
         ];
     }
     if (substr($name, -4) !== '.zip') {
-        throw new moodle_exception('importerrorfiletype', 'local_konzeptgenerator');
+        throw new moodle_exception('importerrorfiletype', 'local_seminarplaner');
     }
     if (!class_exists('ZipArchive')) {
-        throw new moodle_exception('importerrorzipsupport', 'local_konzeptgenerator');
+        throw new moodle_exception('importerrorzipsupport', 'local_seminarplaner');
     }
 
     $zip = new ZipArchive();
     if ($zip->open($filepath) !== true) {
-        throw new moodle_exception('importerrorzipopen', 'local_konzeptgenerator');
+        throw new moodle_exception('importerrorzipopen', 'local_seminarplaner');
     }
 
     $csvindex = -1;
-    if ((int)$zip->numFiles > LOCAL_KONZEPTGENERATOR_IMPORT_MAX_ZIP_ENTRIES) {
+    if ((int)$zip->numFiles > LOCAL_SEMINARPLANER_IMPORT_MAX_ZIP_ENTRIES) {
         $zip->close();
         throw new moodle_exception('invalidparameter');
     }
@@ -227,7 +389,7 @@ function local_konzeptgenerator_extract_rows_from_upload(string $filepath, strin
     }
     if ($csvindex === -1) {
         $zip->close();
-        throw new moodle_exception('importerrorcsvmissing', 'local_konzeptgenerator');
+        throw new moodle_exception('importerrorcsvmissing', 'local_seminarplaner');
     }
 
     $csvcontent = (string)$zip->getFromIndex($csvindex);
@@ -250,7 +412,7 @@ function local_konzeptgenerator_extract_rows_from_upload(string $filepath, strin
         if ($content === false) {
             continue;
         }
-        if (strlen((string)$content) > LOCAL_KONZEPTGENERATOR_IMPORT_MAX_BYTES) {
+        if (strlen((string)$content) > LOCAL_SEMINARPLANER_IMPORT_MAX_BYTES) {
             continue;
         }
         $files[$basename] = (string)$content;
@@ -258,7 +420,7 @@ function local_konzeptgenerator_extract_rows_from_upload(string $filepath, strin
     }
     $zip->close();
     return [
-        'rows' => local_konzeptgenerator_parse_csv($csvcontent),
+        'rows' => local_seminarplaner_parse_csv($csvcontent),
         'files' => $files,
     ];
 }
@@ -269,7 +431,7 @@ function local_konzeptgenerator_extract_rows_from_upload(string $filepath, strin
  * @param int $draftitemid Draft area item id.
  * @return stored_file|null
  */
-function local_konzeptgenerator_get_draft_upload(int $draftitemid): ?stored_file {
+function local_seminarplaner_get_draft_upload(int $draftitemid): ?stored_file {
     global $USER;
 
     if ($draftitemid <= 0) {
@@ -292,7 +454,7 @@ function local_konzeptgenerator_get_draft_upload(int $draftitemid): ?stored_file
  * @param string $filearea File area.
  * @return int
  */
-function local_konzeptgenerator_next_file_itemid(string $filearea): int {
+function local_seminarplaner_next_file_itemid(string $filearea): int {
     global $DB;
 
     static $cache = [];
@@ -302,7 +464,7 @@ function local_konzeptgenerator_next_file_itemid(string $filearea): int {
                FROM {files}
               WHERE component = :component
                 AND filearea = :filearea",
-            ['component' => 'local_konzeptgenerator', 'filearea' => $filearea]
+            ['component' => 'local_seminarplaner', 'filearea' => $filearea]
         );
         $cache[$filearea] = $max;
     }
@@ -320,7 +482,7 @@ function local_konzeptgenerator_next_file_itemid(string $filearea): int {
  * @param array $zipfiles ZIP basename=>content map.
  * @return int Number of files stored.
  */
-function local_konzeptgenerator_store_import_files(int $methodid, string $kind, int $userid, array $filenames, array $zipfiles): int {
+function local_seminarplaner_store_import_files(int $methodid, string $kind, int $userid, array $filenames, array $zipfiles): int {
     global $DB;
 
     $filenames = array_values(array_unique(array_filter(array_map('trim', $filenames))));
@@ -330,7 +492,7 @@ function local_konzeptgenerator_store_import_files(int $methodid, string $kind, 
     $filearea = $kind === 'h5p' ? 'method_h5p' : 'method_material';
     $contextid = context_system::instance()->id;
     $fs = get_file_storage();
-    $itemid = local_konzeptgenerator_next_file_itemid($filearea);
+    $itemid = local_seminarplaner_next_file_itemid($filearea);
     $storedcount = 0;
 
     foreach ($filenames as $filename) {
@@ -349,7 +511,7 @@ function local_konzeptgenerator_store_import_files(int $methodid, string $kind, 
         $content = (string)$zipfiles[$lookup];
         $filerecord = (object)[
             'contextid' => $contextid,
-            'component' => 'local_konzeptgenerator',
+            'component' => 'local_seminarplaner',
             'filearea' => $filearea,
             'itemid' => $itemid,
             'filepath' => '/',
@@ -381,7 +543,7 @@ function local_konzeptgenerator_store_import_files(int $methodid, string $kind, 
  * @param array $records Mapped records.
  * @return int
  */
-function local_konzeptgenerator_import_records_to_set(
+function local_seminarplaner_import_records_to_set(
     int $methodsetid,
     int $versionid,
     int $userid,
@@ -413,7 +575,7 @@ function local_konzeptgenerator_import_records_to_set(
         ]);
         $methodid = (int)$DB->insert_record('local_kgen_method', $record);
         if (!empty($zipfiles)) {
-            local_konzeptgenerator_store_import_files($methodid, 'material', $userid, $materialfiles, $zipfiles);
+            local_seminarplaner_store_import_files($methodid, 'material', $userid, $materialfiles, $zipfiles);
         }
         $count++;
     }
@@ -427,7 +589,7 @@ function local_konzeptgenerator_import_records_to_set(
  * @param string $value Cell value.
  * @return string
  */
-function local_konzeptgenerator_csv_cell(string $value): string {
+function local_seminarplaner_csv_cell(string $value): string {
     if (preg_match('/[",\r\n]/', $value)) {
         return '"' . str_replace('"', '""', $value) . '"';
     }
@@ -441,7 +603,7 @@ function local_konzeptgenerator_csv_cell(string $value): string {
  * @param array<int, array{kind:string,filename:string}> $filesbymethod Method file descriptors by method id.
  * @return array<int, string>
  */
-function local_konzeptgenerator_export_row_from_method(stdClass $row, array $filesbymethod): array {
+function local_seminarplaner_export_row_from_method(stdClass $row, array $filesbymethod): array {
     $materialfiles = [];
     foreach (($filesbymethod[(int)$row->id] ?? []) as $file) {
         if ($file['kind'] !== 'h5p') {
@@ -480,7 +642,7 @@ function local_konzeptgenerator_export_row_from_method(stdClass $row, array $fil
  * @param string $displayname Method set display name.
  * @return never
  */
-function local_konzeptgenerator_send_moddata_export(int $methodsetid, int $versionid, string $displayname): void {
+function local_seminarplaner_send_moddata_export(int $methodsetid, int $versionid, string $displayname): void {
     global $DB;
 
     $rows = $DB->get_records('local_kgen_method', [
@@ -522,7 +684,7 @@ function local_konzeptgenerator_send_moddata_export(int $methodsetid, int $versi
                          AND filename <> :dot
                          AND filesize > 0",
                     $itemparams + [
-                        'component' => 'local_konzeptgenerator',
+                        'component' => 'local_seminarplaner',
                         'materialarea' => 'method_material',
                         'dot' => '.',
                     ]);
@@ -556,11 +718,11 @@ function local_konzeptgenerator_send_moddata_export(int $methodsetid, int $versi
     }
 
     $lines = [];
-    $lines[] = implode(',', array_map('local_konzeptgenerator_csv_cell', $headers));
+    $lines[] = implode(',', array_map('local_seminarplaner_csv_cell', $headers));
     foreach ($rows as $row) {
-        $csvrow = local_konzeptgenerator_export_row_from_method($row, $filesbymethod);
+        $csvrow = local_seminarplaner_export_row_from_method($row, $filesbymethod);
         $lines[] = implode(',', array_map(static function($value) {
-            return local_konzeptgenerator_csv_cell((string)$value);
+            return local_seminarplaner_csv_cell((string)$value);
         }, $csvrow));
     }
     $csvcontent = implode("\n", $lines) . "\n";
@@ -621,7 +783,7 @@ function local_konzeptgenerator_send_moddata_export(int $methodsetid, int $versi
  * @param stdClass $row Method row.
  * @return array
  */
-function local_konzeptgenerator_method_compare_payload(stdClass $row): array {
+function local_seminarplaner_method_compare_payload(stdClass $row): array {
     return [
         'title' => trim((string)($row->title ?? '')),
         'seminarphase' => trim((string)($row->seminarphase ?? '')),
@@ -653,7 +815,7 @@ function local_konzeptgenerator_method_compare_payload(stdClass $row): array {
  * @param string $status Change status.
  * @return string
  */
-function local_konzeptgenerator_diff_itemkey(string $title, string $label, string $before, string $after, string $status): string {
+function local_seminarplaner_diff_itemkey(string $title, string $label, string $before, string $after, string $status): string {
     return sha1($title . "\n" . $label . "\n" . $before . "\n" . $after . "\n" . $status);
 }
 
@@ -665,14 +827,14 @@ function local_konzeptgenerator_diff_itemkey(string $title, string $label, strin
  * @return array{added: array<int, array<string, mixed>>, removed: array<int, array<string, mixed>>,
  *     changed: array<int, array<string, mixed>>}
  */
-function local_konzeptgenerator_compute_review_diff(array $baserows, array $newrows): array {
+function local_seminarplaner_compute_review_diff(array $baserows, array $newrows): array {
     $basebytitle = [];
     foreach ($baserows as $row) {
         $title = trim((string)($row->title ?? ''));
         if ($title === '') {
             continue;
         }
-        $basebytitle[core_text::strtolower($title)] = local_konzeptgenerator_method_compare_payload($row);
+        $basebytitle[core_text::strtolower($title)] = local_seminarplaner_method_compare_payload($row);
     }
 
     $newbytitle = [];
@@ -681,7 +843,7 @@ function local_konzeptgenerator_compute_review_diff(array $baserows, array $newr
         if ($title === '') {
             continue;
         }
-        $newbytitle[core_text::strtolower($title)] = local_konzeptgenerator_method_compare_payload($row);
+        $newbytitle[core_text::strtolower($title)] = local_seminarplaner_method_compare_payload($row);
     }
 
     $fieldlabels = [
@@ -799,7 +961,7 @@ function local_konzeptgenerator_compute_review_diff(array $baserows, array $newr
  * @param array<string, mixed> $item Diff item.
  * @return string
  */
-function local_konzeptgenerator_render_diff_method(array $item, array $decisions = []): string {
+function local_seminarplaner_render_diff_method(array $item, array $decisions = []): string {
     $out = html_writer::start_div('kg-diff-method');
     $out .= html_writer::tag('div', s((string)($item['title'] ?? '')), ['class' => 'kg-diff-method-title']);
     $out .= html_writer::start_tag('table', ['class' => 'kg-diff-table']);
@@ -809,7 +971,7 @@ function local_konzeptgenerator_render_diff_method(array $item, array $decisions
         html_writer::tag('th', 'Vorher') .
         html_writer::tag('th', 'Nachher') .
         html_writer::tag('th', 'Status') .
-        html_writer::tag('th', get_string('reviewacceptcol', 'local_konzeptgenerator'))
+        html_writer::tag('th', get_string('reviewacceptcol', 'local_seminarplaner'))
     );
     $out .= html_writer::end_tag('thead');
     $out .= html_writer::start_tag('tbody');
@@ -819,14 +981,14 @@ function local_konzeptgenerator_render_diff_method(array $item, array $decisions
         $before = trim((string)($row['before'] ?? ''));
         $after = trim((string)($row['after'] ?? ''));
         $rawlabel = (string)($row['label'] ?? '');
-        $itemkey = local_konzeptgenerator_diff_itemkey((string)($item['title'] ?? ''), $rawlabel, $before, $after, $status);
+        $itemkey = local_seminarplaner_diff_itemkey((string)($item['title'] ?? ''), $rawlabel, $before, $after, $status);
         $selecteddecision = (string)($decisions[$itemkey] ?? 'pending');
         $beforetext = $before === '' ? '∅' : s($before);
         $aftertext = $after === '' ? '∅' : s($after);
         $decisionselect = html_writer::select([
-            'pending' => get_string('reviewdecision_pending', 'local_konzeptgenerator'),
-            'accepted' => get_string('reviewdecision_accepted', 'local_konzeptgenerator'),
-            'rejected' => get_string('reviewdecision_rejected', 'local_konzeptgenerator'),
+            'pending' => get_string('reviewdecision_pending', 'local_seminarplaner'),
+            'accepted' => get_string('reviewdecision_accepted', 'local_seminarplaner'),
+            'rejected' => get_string('reviewdecision_rejected', 'local_seminarplaner'),
         ], 'decisions[' . $itemkey . ']', $selecteddecision, false, ['class' => 'kg-input kg-diff-decision']);
         $out .= html_writer::tag('tr',
             html_writer::tag('td', $label) .
@@ -848,7 +1010,7 @@ function local_konzeptgenerator_render_diff_method(array $item, array $decisions
  * @param array<string, mixed> $diff Diff payload.
  * @return array<string, array<string, string>>
  */
-function local_konzeptgenerator_diff_item_map(array $diff): array {
+function local_seminarplaner_diff_item_map(array $diff): array {
     $map = [];
     foreach (['added', 'changed', 'removed'] as $bucket) {
         foreach ((array)($diff[$bucket] ?? []) as $item) {
@@ -858,7 +1020,7 @@ function local_konzeptgenerator_diff_item_map(array $diff): array {
                 $before = trim((string)($row['before'] ?? ''));
                 $after = trim((string)($row['after'] ?? ''));
                 $status = (string)($row['status'] ?? 'replaced');
-                $itemkey = local_konzeptgenerator_diff_itemkey($title, $label, $before, $after, $status);
+                $itemkey = local_seminarplaner_diff_itemkey($title, $label, $before, $after, $status);
                 $map[$itemkey] = [
                     'title' => $title,
                     'label' => $label,
@@ -869,4 +1031,3 @@ function local_konzeptgenerator_diff_item_map(array $diff): array {
     }
     return $map;
 }
-

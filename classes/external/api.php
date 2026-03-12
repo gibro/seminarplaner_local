@@ -1,7 +1,7 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
 
-namespace local_konzeptgenerator\external;
+namespace local_seminarplaner\external;
 
 use context;
 use context_coursecat;
@@ -12,8 +12,8 @@ use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use core_external\external_value;
 use invalid_parameter_exception;
-use local_konzeptgenerator\local\repository\methodset_repository;
-use local_konzeptgenerator\local\service\workflow_service;
+use local_seminarplaner\local\repository\methodset_repository;
+use local_seminarplaner\local\service\workflow_service;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -21,6 +21,10 @@ defined('MOODLE_INTERNAL') || die();
  * External API for global method set governance.
  */
 class api extends external_api {
+    /** @var int Max allowed description length for create_draft_methodset. */
+    private const MAX_DESCRIPTION_CHARS = 12000;
+    /** @var int Max allowed transition comment length. */
+    private const MAX_COMMENT_CHARS = 4000;
     /**
      * Resolve scope context.
      *
@@ -34,6 +38,42 @@ class api extends external_api {
         }
         self::validate_context($ctx);
         return $ctx;
+    }
+
+    /**
+     * Lightweight in-session write throttling for expensive governance endpoints.
+     *
+     * @param string $action Action key.
+     * @param int $maxrequests Max requests in window.
+     * @param int $windowseconds Time window.
+     * @return void
+     */
+    private static function enforce_write_rate_limit(string $action, int $maxrequests, int $windowseconds): void {
+        global $SESSION;
+
+        if ($maxrequests <= 0 || $windowseconds <= 0) {
+            return;
+        }
+        if (!isset($SESSION->local_seminarplaner_ratelimit) || !is_array($SESSION->local_seminarplaner_ratelimit)) {
+            $SESSION->local_seminarplaner_ratelimit = [];
+        }
+
+        $now = time();
+        $windowstart = $now - $windowseconds;
+        $entries = $SESSION->local_seminarplaner_ratelimit[$action] ?? [];
+        if (!is_array($entries)) {
+            $entries = [];
+        }
+
+        $entries = array_values(array_filter($entries, static function($ts) use ($windowstart) {
+            return is_int($ts) && $ts >= $windowstart;
+        }));
+        if (count($entries) >= $maxrequests) {
+            throw new invalid_parameter_exception('Zu viele Schreibanfragen in kurzer Zeit. Bitte kurz warten und erneut versuchen.');
+        }
+
+        $entries[] = $now;
+        $SESSION->local_seminarplaner_ratelimit[$action] = $entries;
     }
 
     public static function create_draft_methodset_parameters(): external_function_parameters {
@@ -55,7 +95,11 @@ class api extends external_api {
         ]);
 
         $ctx = self::resolve_scope_context((int)$params['scopecontextid']);
-        require_capability('local/konzeptgenerator:createdraftset', $ctx);
+        require_capability('local/seminarplaner:createdraftset', $ctx);
+        self::enforce_write_rate_limit('create_draft_methodset', 30, 60);
+        if (\core_text::strlen((string)$params['description']) > self::MAX_DESCRIPTION_CHARS) {
+            throw new invalid_parameter_exception('description exceeds allowed length');
+        }
 
         $repo = new methodset_repository();
         $methodsetid = $repo->create_methodset_draft((string)$params['shortname'], (string)$params['displayname'],
@@ -90,6 +134,10 @@ class api extends external_api {
         ]);
 
         $repo = new methodset_repository();
+        self::enforce_write_rate_limit('transition_methodset', 60, 60);
+        if (\core_text::strlen((string)$params['comment']) > self::MAX_COMMENT_CHARS) {
+            throw new invalid_parameter_exception('comment exceeds allowed length');
+        }
         $methodset = $repo->get_methodset((int)$params['methodsetid']);
         if (!$methodset) {
             throw new invalid_parameter_exception('Unknown methodsetid');
@@ -100,17 +148,17 @@ class api extends external_api {
 
         $target = strtolower((string)$params['tostatus']);
         if ($target === 'review') {
-            require_capability('local/konzeptgenerator:submitforreview', $scopectx);
+            require_capability('local/seminarplaner:submitforreview', $scopectx);
         } else if ($target === 'published') {
-            require_capability('local/konzeptgenerator:publishset', context_system::instance());
+            require_capability('local/seminarplaner:publishset', context_system::instance());
         } else if ($target === 'draft') {
             if ((string)$methodset->status === 'archived') {
-                require_capability('local/konzeptgenerator:archiveglobalset', context_system::instance());
+                require_capability('local/seminarplaner:archiveglobalset', context_system::instance());
             } else {
-                require_capability('local/konzeptgenerator:reviewset', $scopectx);
+                require_capability('local/seminarplaner:reviewset', $scopectx);
             }
         } else if ($target === 'archived') {
-            require_capability('local/konzeptgenerator:archiveglobalset', context_system::instance());
+            require_capability('local/seminarplaner:archiveglobalset', context_system::instance());
         } else {
             throw new invalid_parameter_exception('Unsupported target status');
         }
@@ -142,7 +190,7 @@ class api extends external_api {
         ]);
 
         $ctx = self::resolve_scope_context((int)$params['scopecontextid']);
-        require_capability('local/konzeptgenerator:viewglobalsets', $ctx);
+        require_capability('local/seminarplaner:viewglobalsets', $ctx);
 
         $repo = new methodset_repository();
         $sets = $repo->list_methodsets((int)$ctx->id, (string)$params['status']);

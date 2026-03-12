@@ -3,8 +3,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = 'local_konzeptgenerator';
-$plugin->version = 2026022304;
+$plugin->component = 'local_seminarplaner';
+$plugin->version = 2026022305;
 $plugin->requires = 2024042200; // Moodle 4.5 minimum.
-$plugin->maturity = MATURITY_ALPHA;
-$plugin->release = '0.2.2-alpha';
+$plugin->maturity = MATURITY_BETA;
+$plugin->release = '0.2.2-beta';

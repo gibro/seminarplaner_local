@@ -1,19 +1,22 @@
-# Konzeptgenerator Plugins (Moodle)
+# Seminarplaner Plugins (Moodle)
 
 Dieses Repository enthält zwei zusammenarbeitende Moodle-Plugins:
 
-- `mod_konzeptgenerator` (Aktivitätsmodul für Kurskontext)
-- `local_konzeptgenerator` (globale Methodenset-Verwaltung, Review-Workflow)
+- `mod_seminarplaner` (Aktivitätsmodul für Kurskontext)
+- `local_seminarplaner` (globale Methodenset-Verwaltung, Review-Workflow)
 
 Stand laut Codebasis:
 
-- `mod_konzeptgenerator`: `0.6.6-alpha` (`2026022337`)
-- `local_konzeptgenerator`: `0.2.2-alpha` (`2026022304`)
+<!-- README_SYNC:START -->
+- `mod_seminarplaner`: `0.6.6-beta` (`2026030512`)
+- `local_seminarplaner`: `0.2.2-beta` (`2026022305`)
 - Mindestversion Moodle: `4.5` (`$plugin->requires = 2024042200`)
+- Letzte Synchronisierung: `2026-03-05 17:04:22 CET`
+<!-- README_SYNC:END -->
 
 ## Funktionen
 
-### 1) `mod_konzeptgenerator` (Kursaktivität)
+### 1) `mod_seminarplaner` (Kursaktivität)
 
 UI-Bereiche:
 
@@ -43,7 +46,7 @@ Wichtige Webservice-Funktionen (AJAX):
 - Validierung: `validate_import_payload`, `validate_export_payload`
 - Locks: `acquire_lock`, `refresh_lock`, `release_lock`, `lock_status`
 
-### 2) `local_konzeptgenerator` (globale Governance)
+### 2) `local_seminarplaner` (globale Governance)
 
 Kernfunktionen:
 
@@ -66,30 +69,39 @@ Wichtige Webservice-Funktionen (AJAX):
 - `transition_methodset`
 - `list_methodsets`
 
+## Aktuelle Änderungen (März 2026)
+
+- `mod/importexport.php`: komponentenbasierter Import/Export mit Mehrfachauswahl pro Dateiinhalt (Methoden, Bausteine, Seminarpläne) inkl. Vorschau-Auswahl je Eintrag.
+- `mod/importexport.php`: Review/Local-Exportbox entfernt; Seminarplaner-JSON ist der zentrale Austauschpfad.
+- `mod/methods.php`: Alternativmethoden als reine Mehrfachauswahl (ohne Suche) plus dynamischer Hinweistext bei fehlenden Optionen.
+- `mod/methodlibrary.php`: Edit-Formular zeigt gespeicherte kognitive Dimensionen wieder korrekt in der Mehrfachauswahl; TinyMCE-Felder auf 10 sichtbare Zeilen erhöht.
+- `mod/planningmode.php`: Feld „Alternativgruppe“ ersetzt durch „Baustein-Alternative überschreiben“ mit Mehrfach-Dropdown auf vorhandene Bausteine.
+- `local/manage.php` und `local/reviewrequests.php`: Layout/Buttons/Tabellenreihenfolge vereinheitlicht und an das Plugin-Design angepasst.
+
 ## Rechte/Capabilities
 
-### `mod_konzeptgenerator`
+### `mod_seminarplaner`
 
-- `mod/konzeptgenerator:view`
-- `mod/konzeptgenerator:managemethods`
-- `mod/konzeptgenerator:managegrids`
-- `mod/konzeptgenerator:overrideglobalset`
-- `mod/konzeptgenerator:importfrommoddata`
-- `mod/konzeptgenerator:exporttomoddata`
-- `mod/konzeptgenerator:breaklock`
+- `mod/seminarplaner:view`
+- `mod/seminarplaner:managemethods`
+- `mod/seminarplaner:managegrids`
+- `mod/seminarplaner:overrideglobalset`
+- `mod/seminarplaner:importfrommoddata`
+- `mod/seminarplaner:exporttomoddata`
+- `mod/seminarplaner:breaklock`
 
-### `local_konzeptgenerator`
+### `local_seminarplaner`
 
-- `local/konzeptgenerator:viewglobalsets`
-- `local/konzeptgenerator:createdraftset`
-- `local/konzeptgenerator:editdraftset`
-- `local/konzeptgenerator:submitforreview`
-- `local/konzeptgenerator:reviewset`
-- `local/konzeptgenerator:publishset`
-- `local/konzeptgenerator:archiveglobalset`
-- `local/konzeptgenerator:manageareascopes`
-- `local/konzeptgenerator:importglobalset`
-- `local/konzeptgenerator:exportglobalset`
+- `local/seminarplaner:viewglobalsets`
+- `local/seminarplaner:createdraftset`
+- `local/seminarplaner:editdraftset`
+- `local/seminarplaner:submitforreview`
+- `local/seminarplaner:reviewset`
+- `local/seminarplaner:publishset`
+- `local/seminarplaner:archiveglobalset`
+- `local/seminarplaner:manageareascopes`
+- `local/seminarplaner:importglobalset`
+- `local/seminarplaner:exportglobalset`
 
 ## Installation
 
@@ -97,8 +109,8 @@ Wichtige Webservice-Funktionen (AJAX):
 
 In deiner Moodle-Installation:
 
-- `mod/konzeptgenerator` nach: `moodle/mod/konzeptgenerator`
-- `local/konzeptgenerator` nach: `moodle/local/konzeptgenerator`
+- `mod/seminarplaner` nach: `moodle/mod/seminarplaner`
+- `local/seminarplaner` nach: `moodle/local/seminarplaner`
 
 ### 2) Upgrade ausführen
 
@@ -120,15 +132,32 @@ php admin/cli/upgrade.php
 ### 4) Aktivität im Kurs anlegen
 
 - Kurs öffnen
-- Aktivität `Konzeptgenerator` hinzufügen
+- Aktivität `Seminarplaner` hinzufügen
 - Optional Standard-Methodenset-ID konfigurieren
+
+## Rolle `Reviewer` in Moodle anlegen
+
+Damit Nutzende in `local/seminarplaner/reviewrequests.php` als Konzeptverantwortliche auswählbar sind, muss die Capability `local/seminarplaner:reviewset` in einem passenden Kontext vergeben sein.
+
+1. `Website-Administration -> Nutzer/innen -> Rechte ändern -> Rollen verwalten`
+2. `Neue Rolle hinzufügen` (oder bestehende Rolle duplizieren), Name z. B. `Reviewer`
+3. In den Rollenrechten mindestens folgende Capability auf `Erlauben` setzen:
+   - `local/seminarplaner:reviewset`
+4. Optional zusätzlich setzen (falls Reviewer auch Statuswechsel/Einreichungen ausführen sollen):
+   - `local/seminarplaner:submitforreview`
+5. Rolle zuweisen:
+   - global: `Website-Administration -> Nutzer/innen -> Rechte ändern -> Systemrollen zuweisen`
+   - oder auf Kategorieebene: `Kurskategorie -> Rollen zuweisen`
+6. Prüfen:
+   - Seite `local/seminarplaner/reviewrequests.php` neu laden
+   - bei einem Methodenset unter „Konzeptverantwortliche“ sollte die Person nun auswählbar sein
 
 ## Wichtige Hinweise
 
-- Beide Plugins sind als **Paar** gedacht. Viele Flows (globale Sets, Review) setzen `local_konzeptgenerator` voraus.
+- Beide Plugins sind als **Paar** gedacht. Viele Flows (globale Sets, Review) setzen `local_seminarplaner` voraus.
 - Releasestand ist `alpha` (beide Plugins). Vor Produktion Staging/Tests durchführen.
 - Import von ZIP benötigt `ZipArchive` in PHP.
-- Einige Export-/PDF-UI-Flows laden JS-Bibliotheken per CDN. In restriktiven Netzwerken kann das blockiert sein.
+- Export-/PDF-UI-Flows nutzen lokal eingebundene Third-Party-Bibliotheken (kein CDN erforderlich).
 - Große Importdateien sind limitiert (z. B. Uploadgröße/CSV-Reihen/ZIP-Einträge), um Performance und Sicherheit zu schützen.
 - Nach Updates: Cache leeren (`Website-Administration -> Entwicklung -> Caches leeren`) falls UI/JS nicht aktuell erscheint.
 
@@ -136,12 +165,12 @@ php admin/cli/upgrade.php
 
 Durchgeführte Strukturverbesserungen:
 
-- Gemeinsame Helper in `mod/konzeptgenerator/locallib.php`:
+- Gemeinsame Helper in `mod/seminarplaner/locallib.php`:
   - Seiten-Bootstrap (Context/Capability/Page Setup)
   - Tab-Rendering
   - Wiederverwendbarer Multi-Select-Dropdown-Renderer
 - Seiten `grid.php`, `methods.php`, `methodlibrary.php`, `review.php`, `importexport.php` auf zentrale Helper umgestellt
-- Umfangreiche Utility-Funktionen aus `local/konzeptgenerator/manage.php` nach `local/konzeptgenerator/locallib.php` ausgelagert
+- Umfangreiche Utility-Funktionen aus `local/seminarplaner/manage.php` nach `local/seminarplaner/locallib.php` ausgelagert
 
 Ergebnis:
 

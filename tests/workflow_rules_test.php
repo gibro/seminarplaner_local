@@ -3,12 +3,12 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-use local_konzeptgenerator\local\workflow\workflow_rules;
+use local_seminarplaner\local\workflow\workflow_rules;
 
 /**
  * Tests for workflow rules.
  */
-final class local_konzeptgenerator_workflow_rules_test extends advanced_testcase {
+final class local_seminarplaner_workflow_rules_test extends advanced_testcase {
     public function test_valid_transitions(): void {
         $rules = new workflow_rules();
 

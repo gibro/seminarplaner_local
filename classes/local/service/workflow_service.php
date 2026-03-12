@@ -1,13 +1,13 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
 
-namespace local_konzeptgenerator\local\service;
+namespace local_seminarplaner\local\service;
 
 use coding_exception;
-use local_konzeptgenerator\local\repository\methodset_repository;
-use local_konzeptgenerator\local\repository\reviewer_repository;
-use local_konzeptgenerator\local\repository\workflow_event_repository;
-use local_konzeptgenerator\local\workflow\workflow_rules;
+use local_seminarplaner\local\repository\methodset_repository;
+use local_seminarplaner\local\repository\reviewer_repository;
+use local_seminarplaner\local\repository\workflow_event_repository;
+use local_seminarplaner\local\workflow\workflow_rules;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -86,10 +86,10 @@ class workflow_service {
             $this->methodsetrepository->update_version_status($versionid, $tostatus, $actorid, $role);
         }
 
-        if ($tostatus === 'published' && class_exists('\\mod_konzeptgenerator\\local\\service\\methodset_sync_service')) {
+        if ($tostatus === 'published' && class_exists('\\mod_seminarplaner\\local\\service\\methodset_sync_service')) {
             $syncversionid = $versionid ?: (int)($methodset->currentversion ?? 0);
             if ($syncversionid > 0) {
-                $syncservice = new \mod_konzeptgenerator\local\service\methodset_sync_service();
+                $syncservice = new \mod_seminarplaner\local\service\methodset_sync_service();
                 $syncservice->sync_published_methodset($methodsetid, $syncversionid, $actorid);
             }
         }
@@ -132,15 +132,15 @@ class workflow_service {
             return;
         }
 
-        $reviewurl = new \moodle_url('/local/konzeptgenerator/reviewrequests.php');
+        $reviewurl = new \moodle_url('/local/seminarplaner/reviewrequests.php');
         $a = (object)[
             'setname' => (string)$methodset->displayname,
             'submitter' => fullname($sender),
             'url' => $reviewurl->out(false),
             'sitename' => format_string((string)get_config('moodle', 'sitename')),
         ];
-        $subject = get_string('reviewmail_subject', 'local_konzeptgenerator', $a);
-        $text = get_string('reviewmail_body', 'local_konzeptgenerator', $a);
+        $subject = get_string('reviewmail_subject', 'local_seminarplaner', $a);
+        $text = get_string('reviewmail_body', 'local_seminarplaner', $a);
         $html = nl2br(s($text));
 
         foreach ($reviewers as $reviewer) {
