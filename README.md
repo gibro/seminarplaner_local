@@ -152,6 +152,38 @@ Damit Nutzende in `local/seminarplaner/reviewrequests.php` als Konzeptverantwort
    - Seite `local/seminarplaner/reviewrequests.php` neu laden
    - bei einem Methodenset unter „Konzeptverantwortliche“ sollte die Person nun auswählbar sein
 
+### Bedeutung der Rechte im Review-Workflow
+
+- `local/seminarplaner:reviewset`
+  - Das ist das eigentliche Reviewer-Recht.
+  - Damit kann eine Person ihr zugewiesene Methodensets im Status `review` auf `local/seminarplaner/reviewrequests.php` unter `Meine Reviews` sehen.
+  - Nur mit diesem Recht und einer echten Zuweisung als Konzeptverantwortliche*r können Review-Diffs geöffnet und Entscheidungen gespeichert werden.
+
+- `local/seminarplaner:submitforreview`
+  - Das ist kein reines Reviewer-Recht, sondern ein Einreich-/Workflow-Recht.
+  - Damit können Entwurfs-Sets in den Status `review` überführt werden.
+  - Wenn dieses Recht zusätzlich an eine Reviewer-Rolle vergeben wird, verhält sich die Person nicht mehr wie ein reiner Reviewer, sondern teilweise wie eine verwaltende Person im Review-Workflow.
+
+### Empfohlene Rollentrennung
+
+- Reine Reviewer-Rolle:
+  - `local/seminarplaner:reviewset`
+  - kein `local/seminarplaner:submitforreview`
+  - Erwartetes Verhalten:
+    - Auf `local/seminarplaner/reviewrequests.php` erscheint die Ansicht `Meine Reviews`
+    - Es werden nur die dem Nutzer zugewiesenen Reviews angezeigt
+    - Es gibt keine Möglichkeit, andere Konzeptverantwortliche zuzuweisen
+
+- Erweiterte Workflow-Rolle:
+  - `local/seminarplaner:reviewset`
+  - optional zusätzlich `local/seminarplaner:submitforreview`
+  - Nur vergeben, wenn die Person Entwurfs-Sets selbst zur Review einreichen soll
+
+### Wichtig für Tests
+
+- Wenn ein Testnutzer `local/seminarplaner:submitforreview` entfernt bekommt und danach `Meine Reviews` sieht, ist das erwartetes Verhalten für eine reine Reviewer-Rolle.
+- Wenn ein Nutzer trotz Reviewer-Rolle fremde Sets oder Zuweisungs-Steuerelemente sieht, ist fast immer noch ein zusätzliches Workflow-/Verwaltungsrecht im selben Scope vergeben.
+
 ## Wichtige Hinweise
 
 - Beide Plugins sind als **Paar** gedacht. Viele Flows (globale Sets, Review) setzen `local_seminarplaner` voraus.

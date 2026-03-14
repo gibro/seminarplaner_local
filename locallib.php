@@ -959,9 +959,11 @@ function local_seminarplaner_compute_review_diff(array $baserows, array $newrows
  * Render detailed before/after rows for a diff method entry.
  *
  * @param array<string, mixed> $item Diff item.
+ * @param array<string, string> $decisions Existing decision map.
+ * @param bool $allowdecisions Whether decisions can be changed.
  * @return string
  */
-function local_seminarplaner_render_diff_method(array $item, array $decisions = []): string {
+function local_seminarplaner_render_diff_method(array $item, array $decisions = [], bool $allowdecisions = true): string {
     $out = html_writer::start_div('kg-diff-method');
     $out .= html_writer::tag('div', s((string)($item['title'] ?? '')), ['class' => 'kg-diff-method-title']);
     $out .= html_writer::start_tag('table', ['class' => 'kg-diff-table']);
@@ -971,7 +973,7 @@ function local_seminarplaner_render_diff_method(array $item, array $decisions = 
         html_writer::tag('th', 'Vorher') .
         html_writer::tag('th', 'Nachher') .
         html_writer::tag('th', 'Status') .
-        html_writer::tag('th', get_string('reviewacceptcol', 'local_seminarplaner'))
+        html_writer::tag('th', get_string($allowdecisions ? 'reviewacceptcol' : 'reviewdecisioncol', 'local_seminarplaner'))
     );
     $out .= html_writer::end_tag('thead');
     $out .= html_writer::start_tag('tbody');
@@ -985,17 +987,21 @@ function local_seminarplaner_render_diff_method(array $item, array $decisions = 
         $selecteddecision = (string)($decisions[$itemkey] ?? 'pending');
         $beforetext = $before === '' ? '∅' : s($before);
         $aftertext = $after === '' ? '∅' : s($after);
-        $decisionselect = html_writer::select([
-            'pending' => get_string('reviewdecision_pending', 'local_seminarplaner'),
-            'accepted' => get_string('reviewdecision_accepted', 'local_seminarplaner'),
-            'rejected' => get_string('reviewdecision_rejected', 'local_seminarplaner'),
-        ], 'decisions[' . $itemkey . ']', $selecteddecision, false, ['class' => 'kg-input kg-diff-decision']);
+        if ($allowdecisions) {
+            $decisioncontent = html_writer::select([
+                'pending' => get_string('reviewdecision_pending', 'local_seminarplaner'),
+                'accepted' => get_string('reviewdecision_accepted', 'local_seminarplaner'),
+                'rejected' => get_string('reviewdecision_rejected', 'local_seminarplaner'),
+            ], 'decisions[' . $itemkey . ']', $selecteddecision, false, ['class' => 'kg-input kg-diff-decision']);
+        } else {
+            $decisioncontent = s((string)get_string('reviewdecision_' . $selecteddecision, 'local_seminarplaner'));
+        }
         $out .= html_writer::tag('tr',
             html_writer::tag('td', $label) .
             html_writer::tag('td', html_writer::tag('span', $beforetext, ['class' => 'kg-diff-value kg-diff-before kg-diff-' . $status])) .
             html_writer::tag('td', html_writer::tag('span', $aftertext, ['class' => 'kg-diff-value kg-diff-after kg-diff-' . $status])) .
             html_writer::tag('td', html_writer::tag('span', strtoupper($status), ['class' => 'kg-diff-badge kg-diff-badge-' . $status])) .
-            html_writer::tag('td', $decisionselect)
+            html_writer::tag('td', $decisioncontent)
         );
     }
     $out .= html_writer::end_tag('tbody');

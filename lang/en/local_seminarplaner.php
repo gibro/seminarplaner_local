@@ -69,12 +69,16 @@ $string['reviewdiffnone'] = 'No differences detected';
 $string['reviewdiffopen'] = 'Show review diff';
 $string['reviewdiffpopuptitle'] = 'Review diff: {$a}';
 $string['reviewacceptcol'] = 'Accept';
+$string['reviewdecisioncol'] = 'Decision';
 $string['reviewdecision_pending'] = 'Open';
 $string['reviewdecision_accepted'] = 'Accept';
 $string['reviewdecision_rejected'] = 'Reject';
 $string['reviewacceptallchanges'] = 'Accept all changes';
 $string['savereviewdecisions'] = 'Save decisions';
 $string['reviewdecisionssaved'] = 'Review decisions saved.';
+$string['myreviewsheading'] = 'My reviews';
+$string['myreviewsnone'] = 'There are currently no method sets assigned to you for review.';
+$string['managequeuesheading'] = 'Review administration';
 $string['reviewfeedback_subject'] = 'Review feedback for method set: {$a->setname}';
 $string['reviewfeedback_body'] = 'Hello,' . "\n\n" .
     '{$a->reviewer} has saved review decisions for method set "{$a->setname}".' . "\n\n" .

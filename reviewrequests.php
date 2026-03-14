@@ -8,7 +8,6 @@ $action = optional_param('action', '', PARAM_ALPHANUMEXT);
 
 require_login();
 $syscontext = context_system::instance();
-require_capability('local/seminarplaner:viewglobalsets', $syscontext);
 
 $PAGE->set_url('/local/seminarplaner/reviewrequests.php');
 $PAGE->set_context($syscontext);
@@ -98,6 +97,387 @@ function local_seminarplaner_get_reviewer_candidates(context $scopecontext): arr
     return $byid;
 }
 
+/**
+ * Check whether the current user should see management controls for a scope.
+ *
+ * @param context $scopecontext
+ * @param context_system $syscontext
+ * @return bool
+ */
+function local_seminarplaner_user_can_manage_scope(context $scopecontext, context_system $syscontext): bool {
+    return has_capability('local/seminarplaner:createdraftset', $scopecontext)
+        || has_capability('local/seminarplaner:editdraftset', $scopecontext)
+        || has_capability('local/seminarplaner:importglobalset', $scopecontext)
+        || has_capability('local/seminarplaner:exportglobalset', $scopecontext)
+        || has_capability('local/seminarplaner:publishset', $syscontext)
+        || has_capability('local/seminarplaner:archiveglobalset', $syscontext);
+}
+
+/**
+ * Check whether a user is assigned as reviewer for a method set.
+ *
+ * @param local_seminarplaner\local\repository\reviewer_repository $reviewerrepo
+ * @param int $methodsetid
+ * @param int $userid
+ * @return bool
+ */
+function local_seminarplaner_user_is_assigned_reviewer(
+    \local_seminarplaner\local\repository\reviewer_repository $reviewerrepo,
+    int $methodsetid,
+    int $userid
+): bool {
+    return in_array($userid, $reviewerrepo->get_reviewer_userids($methodsetid), true);
+}
+
+/**
+ * Render diff bucket sections.
+ *
+ * @param array<string, mixed> $diff
+ * @param array<string, string> $decisions
+ * @param bool $allowdecisions
+ * @return string
+ */
+function local_seminarplaner_render_review_diff_sections(array $diff, array $decisions, bool $allowdecisions): string {
+    $content = html_writer::start_div('kg-review-diff');
+    if (!empty($diff['added'])) {
+        $content .= html_writer::tag('div', get_string('reviewdiffnew', 'local_seminarplaner'), ['class' => 'kg-review-section-title']);
+        foreach ($diff['added'] as $item) {
+            $content .= local_seminarplaner_render_diff_method($item, $decisions, $allowdecisions);
+        }
+    }
+    if (!empty($diff['changed'])) {
+        $content .= html_writer::tag('div', get_string('reviewdiffchanged', 'local_seminarplaner'), ['class' => 'kg-review-section-title']);
+        foreach ($diff['changed'] as $item) {
+            $content .= local_seminarplaner_render_diff_method($item, $decisions, $allowdecisions);
+        }
+    }
+    if (!empty($diff['removed'])) {
+        $content .= html_writer::tag('div', get_string('reviewdiffremoved', 'local_seminarplaner'), ['class' => 'kg-review-section-title']);
+        foreach ($diff['removed'] as $item) {
+            $content .= local_seminarplaner_render_diff_method($item, $decisions, $allowdecisions);
+        }
+    }
+    $content .= html_writer::end_div();
+
+    return $content;
+}
+
+/**
+ * Build the review diff link and modal for a set.
+ *
+ * @param stdClass $set
+ * @param local_seminarplaner\local\repository\methodset_repository $repo
+ * @param bool $allowdecisions
+ * @param string $modalprefix
+ * @return array{cell:string,modal:string}
+ */
+function local_seminarplaner_build_reviewdiff_payload(
+    stdClass $set,
+    \local_seminarplaner\local\repository\methodset_repository $repo,
+    bool $allowdecisions,
+    string $modalprefix
+): array {
+    global $DB, $USER;
+
+    if (empty($set->currentversion)) {
+        return ['cell' => get_string('reviewdiffnone', 'local_seminarplaner'), 'modal' => ''];
+    }
+
+    $currentversion = $repo->get_version((int)$set->currentversion);
+    if (!$currentversion) {
+        return ['cell' => get_string('reviewdiffnone', 'local_seminarplaner'), 'modal' => ''];
+    }
+
+    $baserows = [];
+    $previousversion = $DB->get_record_sql(
+        "SELECT id
+           FROM {local_kgen_methodset_ver}
+          WHERE methodsetid = :methodsetid
+            AND versionnum < :versionnum
+       ORDER BY versionnum DESC",
+        ['methodsetid' => (int)$set->id, 'versionnum' => (int)$currentversion->versionnum],
+        IGNORE_MULTIPLE
+    );
+    if ($previousversion) {
+        $baserows = $DB->get_records('local_kgen_method', [
+            'methodsetid' => (int)$set->id,
+            'methodsetversionid' => (int)$previousversion->id,
+        ]);
+    }
+
+    $newrows = $DB->get_records('local_kgen_method', [
+        'methodsetid' => (int)$set->id,
+        'methodsetversionid' => (int)$set->currentversion,
+    ]);
+    $diff = local_seminarplaner_compute_review_diff($baserows, $newrows);
+    if (empty($diff['added']) && empty($diff['changed']) && empty($diff['removed'])) {
+        return ['cell' => get_string('reviewdiffnone', 'local_seminarplaner'), 'modal' => ''];
+    }
+
+    $modalid = $modalprefix . '-' . (int)$set->id;
+    $cell = html_writer::link('#', get_string('reviewdiffopen', 'local_seminarplaner'), [
+        'class' => 'kg-reviewdiff-link',
+        'data-kg-open-modal' => $modalid,
+    ]);
+
+    $decisions = [];
+    $records = $DB->get_records('local_kgen_review_decision', [
+        'methodsetversionid' => (int)$set->currentversion,
+        'reviewerid' => (int)$USER->id,
+    ]);
+    foreach ($records as $record) {
+        $decisions[(string)$record->itemkey] = (string)$record->decision;
+    }
+
+    if ($allowdecisions) {
+        $modalcontent = html_writer::start_tag('form', [
+            'method' => 'post',
+            'action' => (new moodle_url('/local/seminarplaner/reviewrequests.php'))->out(false),
+        ]);
+        $modalcontent .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+        $modalcontent .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'savereviewdecisions']);
+        $modalcontent .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'methodsetid', 'value' => (int)$set->id]);
+        $modalcontent .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'versionid', 'value' => (int)$set->currentversion]);
+        $modalcontent .= html_writer::start_div('kg-review-diff-tools');
+        $modalcontent .= html_writer::tag('button', get_string('reviewacceptallchanges', 'local_seminarplaner'), [
+            'type' => 'button',
+            'class' => 'kg-btn kg-btn-primary',
+            'data-kg-accept-all-decisions' => '1',
+        ]);
+        $modalcontent .= html_writer::end_div();
+        $modalcontent .= local_seminarplaner_render_review_diff_sections($diff, $decisions, true);
+        $modalcontent .= html_writer::start_div('kg-modal-actions');
+        $modalcontent .= html_writer::tag('button', get_string('savereviewdecisions', 'local_seminarplaner'), [
+            'type' => 'submit',
+            'class' => 'kg-btn kg-btn-primary',
+        ]);
+        $modalcontent .= html_writer::tag('button', get_string('closebuttontitle', 'moodle'), [
+            'type' => 'button',
+            'class' => 'kg-modal-close',
+            'data-kg-close-modal' => $modalid,
+        ]);
+        $modalcontent .= html_writer::end_div();
+        $modalcontent .= html_writer::end_tag('form');
+    } else {
+        $modalcontent = local_seminarplaner_render_review_diff_sections($diff, $decisions, false);
+        $modalcontent .= html_writer::start_div('kg-modal-actions');
+        $modalcontent .= html_writer::tag('button', get_string('closebuttontitle', 'moodle'), [
+            'type' => 'button',
+            'class' => 'kg-modal-close',
+            'data-kg-close-modal' => $modalid,
+        ]);
+        $modalcontent .= html_writer::end_div();
+    }
+
+    $modal = html_writer::start_div('kg-modal kg-hidden', ['id' => $modalid, 'data-kg-modal' => '1']);
+    $modal .= html_writer::start_div('kg-modal-content');
+    $modal .= html_writer::start_div('kg-modal-header');
+    $modal .= html_writer::tag('div',
+        get_string('reviewdiffpopuptitle', 'local_seminarplaner', format_string($set->displayname)),
+        ['class' => 'kg-modal-title']);
+    $modal .= html_writer::tag('button', '×', [
+        'type' => 'button',
+        'class' => 'kg-modal-close',
+        'data-kg-close-modal' => $modalid,
+    ]);
+    $modal .= html_writer::end_div();
+    $modal .= $modalcontent;
+    $modal .= html_writer::end_div();
+    $modal .= html_writer::end_div();
+
+    return ['cell' => $cell, 'modal' => $modal];
+}
+
+/**
+ * Render reviewer assignment controls for a set.
+ *
+ * @param int $setid
+ * @param array<int, stdClass> $candidates
+ * @param array<int, int> $selectedreviewers
+ * @return string
+ */
+function local_seminarplaner_render_reviewer_cell(int $setid, array $candidates, array $selectedreviewers): string {
+    $options = [];
+    foreach ($candidates as $candidate) {
+        $label = fullname($candidate);
+        if (!empty($candidate->email)) {
+            $label .= ' <' . $candidate->email . '>';
+        }
+        $options[(int)$candidate->id] = $label;
+    }
+
+    $reviewerselectid = 'kg-reviewers-' . $setid;
+    $reviewercell = html_writer::start_tag('form', [
+        'method' => 'post',
+        'action' => (new moodle_url('/local/seminarplaner/reviewrequests.php'))->out(false),
+        'class' => 'kg-reviewer-form',
+    ]);
+    $reviewercell .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+    $reviewercell .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'assignreviewers']);
+    $reviewercell .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'methodsetid', 'value' => $setid]);
+    $reviewercell .= html_writer::label(get_string('assignreviewers', 'local_seminarplaner'), $reviewerselectid);
+
+    $reviewercell .= html_writer::start_div('kg-tag-dropdown', [
+        'id' => 'kg-reviewer-dropdown-' . $setid,
+        'data-kg-reviewer-dropdown' => '1',
+    ]);
+    $reviewercell .= html_writer::tag('button', get_string('assignreviewers', 'local_seminarplaner'), [
+        'type' => 'button',
+        'id' => 'kg-reviewer-toggle-' . $setid,
+        'class' => 'kg-tag-dropdown-toggle',
+        'data-kg-reviewer-toggle' => '1',
+    ]);
+    $reviewercell .= html_writer::start_div('kg-tag-dropdown-panel kg-hidden', [
+        'id' => 'kg-reviewer-panel-' . $setid,
+        'data-kg-reviewer-panel' => '1',
+    ]);
+
+    foreach ($options as $reviewerid => $label) {
+        $checkboxid = $reviewerselectid . '-' . (int)$reviewerid;
+        $attrs = [
+            'type' => 'checkbox',
+            'id' => $checkboxid,
+            'name' => 'reviewerids[]',
+            'value' => (int)$reviewerid,
+            'data-kg-reviewer-checkbox' => '1',
+        ];
+        if (in_array((int)$reviewerid, $selectedreviewers, true)) {
+            $attrs['checked'] = 'checked';
+        }
+        $reviewercell .= html_writer::start_tag('label', ['class' => 'kg-tag-option', 'for' => $checkboxid]);
+        $reviewercell .= html_writer::empty_tag('input', $attrs);
+        $reviewercell .= html_writer::tag('span', s($label));
+        $reviewercell .= html_writer::end_tag('label');
+    }
+
+    $reviewercell .= html_writer::end_div();
+    $reviewercell .= html_writer::end_div();
+    $reviewercell .= html_writer::empty_tag('input', [
+        'type' => 'submit',
+        'value' => get_string('savereviewers', 'local_seminarplaner'),
+        'class' => 'kg-btn',
+    ]);
+    $reviewercell .= html_writer::end_tag('form');
+
+    return $reviewercell;
+}
+
+/**
+ * Render a table for review/manage sets.
+ *
+ * @param array<int, stdClass> $sets
+ * @param local_seminarplaner\local\repository\methodset_repository $repo
+ * @param array<int, array<int, int>> $assignedreviewers
+ * @param array<int, array<int, stdClass>> $reviewercandidatesbyset
+ * @param array<int, bool> $setmanagerrights
+ * @param array<int, bool> $setsubmitrights
+ * @param array<int, bool> $setreviewrights
+ * @param array<int, bool> $isassignedreviewer
+ * @param context_system $syscontext
+ * @param bool $showreviewers
+ * @param string $modalprefix
+ * @return array{table:string,modals:string}
+ */
+function local_seminarplaner_render_set_table(
+    array $sets,
+    \local_seminarplaner\local\repository\methodset_repository $repo,
+    array $assignedreviewers,
+    array $reviewercandidatesbyset,
+    array $setmanagerrights,
+    array $setsubmitrights,
+    array $setreviewrights,
+    array $isassignedreviewer,
+    context_system $syscontext,
+    bool $showreviewers,
+    string $modalprefix
+): array {
+    $table = new html_table();
+    $table->head = [
+        'ID',
+        get_string('shortname'),
+        get_string('name'),
+        get_string('status', 'moodle'),
+    ];
+    if ($showreviewers) {
+        $table->head[] = get_string('reviewerscol', 'local_seminarplaner');
+    }
+    $table->head[] = get_string('reviewdiffcol', 'local_seminarplaner');
+    $table->head[] = get_string('actions');
+
+    $diffmodals = '';
+    foreach ($sets as $set) {
+        $setid = (int)$set->id;
+        $actions = [];
+        $reviewercountforaction = count($assignedreviewers[$setid] ?? []);
+        $setcanassignreviewers = !empty($setmanagerrights[$setid]);
+        if ((string)$set->status === 'draft' && $setcanassignreviewers && $reviewercountforaction > 0) {
+            $actions[] = html_writer::link(new moodle_url('/local/seminarplaner/reviewrequests.php', [
+                'action' => 'transition',
+                'sesskey' => sesskey(),
+                'methodsetid' => $setid,
+                'versionid' => $set->currentversion,
+                'tostatus' => 'review',
+            ]), get_string('submitforreview', 'local_seminarplaner'), ['class' => 'kg-action-link']);
+        } else if ((string)$set->status === 'draft' && $setcanassignreviewers) {
+            $actions[] = html_writer::tag('span', get_string('reviewersrequired', 'local_seminarplaner'), [
+                'class' => 'kg-action-link',
+                'style' => 'color:#b91c1c;font-weight:600',
+            ]);
+        }
+        if ((string)$set->status === 'review' && !empty($setreviewrights[$setid]) && !empty($isassignedreviewer[$setid])) {
+            $actions[] = html_writer::link(new moodle_url('/local/seminarplaner/reviewrequests.php', [
+                'action' => 'transition',
+                'sesskey' => sesskey(),
+                'methodsetid' => $setid,
+                'versionid' => $set->currentversion,
+                'tostatus' => 'draft',
+            ]), get_string('backtodraft', 'local_seminarplaner'), ['class' => 'kg-action-link']);
+        }
+        if ((string)$set->status === 'review' && has_capability('local/seminarplaner:publishset', $syscontext)) {
+            $actions[] = html_writer::link(new moodle_url('/local/seminarplaner/reviewrequests.php', [
+                'action' => 'transition',
+                'sesskey' => sesskey(),
+                'methodsetid' => $setid,
+                'versionid' => $set->currentversion,
+                'tostatus' => 'published',
+            ]), get_string('publishset', 'local_seminarplaner'), ['class' => 'kg-action-link']);
+        }
+
+        $row = [
+            (int)$set->id,
+            s((string)$set->shortname),
+            s((string)$set->displayname),
+            s((string)$set->status),
+        ];
+
+        if ($showreviewers) {
+            $reviewercell = '-';
+            if ($setcanassignreviewers) {
+                $reviewercell = local_seminarplaner_render_reviewer_cell(
+                    $setid,
+                    $reviewercandidatesbyset[$setid] ?? [],
+                    $assignedreviewers[$setid] ?? []
+                );
+            }
+            $row[] = $reviewercell;
+        }
+
+        $allowdecisions = ((string)$set->status === 'review')
+            && !empty($setreviewrights[$setid])
+            && !empty($isassignedreviewer[$setid]);
+        $reviewdiffpayload = local_seminarplaner_build_reviewdiff_payload($set, $repo, $allowdecisions, $modalprefix);
+        $row[] = $reviewdiffpayload['cell'];
+        $row[] = implode(' | ', $actions);
+        $table->data[] = $row;
+        $diffmodals .= $reviewdiffpayload['modal'];
+    }
+
+    return [
+        'table' => html_writer::table($table),
+        'modals' => $diffmodals,
+    ];
+}
+
 $message = '';
 $error = false;
 
@@ -122,6 +502,9 @@ if ($action === 'transition' && confirm_sesskey()) {
             require_capability('local/seminarplaner:publishset', $syscontext);
         } else if ($tostatus === 'draft') {
             require_capability('local/seminarplaner:reviewset', $scopecontext);
+            if (!local_seminarplaner_user_is_assigned_reviewer($reviewerrepo, (int)$methodsetid, (int)$USER->id)) {
+                throw new required_capability_exception($scopecontext, 'local/seminarplaner:reviewset', 'nopermissions', '');
+            }
         } else {
             throw new moodle_exception('invalidparameter');
         }
@@ -147,7 +530,9 @@ if ($action === 'assignreviewers' && confirm_sesskey()) {
             throw new moodle_exception('invalidparameter');
         }
         $scopecontext = local_seminarplaner_get_set_scope_context($methodset, $syscontext);
-        require_capability('local/seminarplaner:submitforreview', $scopecontext);
+        if (!local_seminarplaner_user_can_manage_scope($scopecontext, $syscontext)) {
+            throw new required_capability_exception($scopecontext, 'local/seminarplaner:editdraftset', 'nopermissions', '');
+        }
 
         $candidates = local_seminarplaner_get_reviewer_candidates($scopecontext);
         $allowed = [];
@@ -186,6 +571,10 @@ if ($action === 'savereviewdecisions' && confirm_sesskey()) {
         }
         $scopecontext = local_seminarplaner_get_set_scope_context($set, $syscontext);
         require_capability('local/seminarplaner:reviewset', $scopecontext);
+        if (!local_seminarplaner_user_is_assigned_reviewer($reviewerrepo, (int)$methodsetid, (int)$USER->id)) {
+            throw new required_capability_exception($scopecontext, 'local/seminarplaner:reviewset', 'nopermissions', '');
+        }
+
         $version = $repo->get_version($versionid);
         if (!$version || (int)$version->methodsetid !== (int)$methodsetid) {
             throw new moodle_exception('invalidparameter');
@@ -301,30 +690,70 @@ if ($action === 'savereviewdecisions' && confirm_sesskey()) {
     }
 }
 
-$sets = $repo->list_methodsets((int)$syscontext->id);
+$allsets = $repo->list_all_methodsets();
 $assignedreviewers = [];
 $reviewercandidatesbyset = [];
 $reviewercandidatescache = [];
+$setmanagerrights = [];
 $setsubmitrights = [];
 $setreviewrights = [];
-foreach ($sets as $set) {
+$isassignedreviewer = [];
+$myreviewsets = [];
+$hasreviewscope = false;
+
+foreach ($allsets as $set) {
     $setid = (int)$set->id;
     $assignedreviewers[$setid] = $reviewerrepo->get_reviewer_userids($setid);
+    $isassignedreviewer[$setid] = in_array((int)$USER->id, $assignedreviewers[$setid], true);
 
     $scopecontext = local_seminarplaner_get_set_scope_context($set, $syscontext);
     $scopecontextid = (int)$scopecontext->id;
-    if (!array_key_exists($scopecontextid, $reviewercandidatescache)) {
-        $reviewercandidatescache[$scopecontextid] = local_seminarplaner_get_reviewer_candidates($scopecontext);
-    }
-    $reviewercandidatesbyset[$setid] = $reviewercandidatescache[$scopecontextid];
+
+    $setmanagerrights[$setid] = local_seminarplaner_user_can_manage_scope($scopecontext, $syscontext);
     $setsubmitrights[$setid] = has_capability('local/seminarplaner:submitforreview', $scopecontext);
     $setreviewrights[$setid] = has_capability('local/seminarplaner:reviewset', $scopecontext);
+    $hasreviewscope = $hasreviewscope || !empty($setreviewrights[$setid]);
+
+    if (!empty($setsubmitrights[$setid])) {
+        if (!array_key_exists($scopecontextid, $reviewercandidatescache)) {
+            $reviewercandidatescache[$scopecontextid] = local_seminarplaner_get_reviewer_candidates($scopecontext);
+        }
+        $reviewercandidatesbyset[$setid] = $reviewercandidatescache[$scopecontextid];
+    }
+
+    if ((string)$set->status === 'review' && !empty($setreviewrights[$setid]) && !empty($isassignedreviewer[$setid])) {
+        $myreviewsets[$setid] = $set;
+    }
+}
+
+$managementsets = [];
+foreach ($allsets as $set) {
+    $setid = (int)$set->id;
+    if (!empty($setmanagerrights[$setid])) {
+        $managementsets[$setid] = $set;
+    }
+}
+
+$canaccesspage = $hasreviewscope
+    || !empty($myreviewsets)
+    || !empty($managementsets);
+if (!$canaccesspage) {
+    require_capability('local/seminarplaner:reviewset', $syscontext);
+}
+
+$managerview = !empty($managementsets);
+if (!$managerview) {
+    $PAGE->set_title(get_string('myreviewsheading', 'local_seminarplaner'));
+    $PAGE->set_heading(get_string('myreviewsheading', 'local_seminarplaner'));
 }
 
 echo $OUTPUT->header();
-echo $OUTPUT->heading(get_string('globalmethodsetsview', 'local_seminarplaner'));
+echo $OUTPUT->heading($managerview
+    ? get_string('reviewrequestspage', 'local_seminarplaner')
+    : get_string('myreviewsheading', 'local_seminarplaner'));
 
 echo html_writer::tag('style', '
+.kg-section{margin-top:24px}
 .kg-action-link{white-space:nowrap}
 .kg-reviewer-form{display:flex;flex-direction:column;gap:8px;min-width:280px}
 .kg-reviewdiff-link{font-weight:600}
@@ -375,255 +804,60 @@ if ($message !== '') {
     echo $OUTPUT->notification($message, $error ? 'notifyproblem' : 'notifysuccess');
 }
 
-echo $OUTPUT->single_button(
-    new moodle_url('/local/seminarplaner/manage.php'),
-    get_string('manageglobalsets', 'local_seminarplaner'),
-    'get'
-);
+$allmodals = '';
 
-$table = new html_table();
-$table->head = [
-    'ID',
-    get_string('shortname'),
-    get_string('name'),
-    get_string('status', 'moodle'),
-    get_string('reviewerscol', 'local_seminarplaner'),
-    get_string('reviewdiffcol', 'local_seminarplaner'),
-    get_string('actions'),
-];
+echo html_writer::start_div('kg-section');
+if ($managerview) {
+    echo $OUTPUT->heading(get_string('myreviewsheading', 'local_seminarplaner'), 3);
+}
+if (!empty($myreviewsets)) {
+    $myreviewtable = local_seminarplaner_render_set_table(
+        $myreviewsets,
+        $repo,
+        $assignedreviewers,
+        $reviewercandidatesbyset,
+        $setmanagerrights,
+        $setsubmitrights,
+        $setreviewrights,
+        $isassignedreviewer,
+        $syscontext,
+        false,
+        'kg-review-diff-mine'
+    );
+    echo $myreviewtable['table'];
+    $allmodals .= $myreviewtable['modals'];
+} else if ($hasreviewscope) {
+    echo $OUTPUT->notification(get_string('myreviewsnone', 'local_seminarplaner'), 'info');
+}
+echo html_writer::end_div();
 
-$diffmodals = '';
-foreach ($sets as $set) {
-    $actions = [];
-    $setid = (int)$set->id;
-    $reviewercountforaction = count($assignedreviewers[$setid] ?? []);
-    $setcanassignreviewers = !empty($setsubmitrights[$setid]);
-    if ((string)$set->status === 'draft' && $setcanassignreviewers
-            && $reviewercountforaction > 0) {
-        $actions[] = html_writer::link(new moodle_url('/local/seminarplaner/reviewrequests.php', [
-            'action' => 'transition',
-            'sesskey' => sesskey(),
-            'methodsetid' => $set->id,
-            'versionid' => $set->currentversion,
-            'tostatus' => 'review',
-        ]), get_string('submitforreview', 'local_seminarplaner'), ['class' => 'kg-action-link']);
-    } else if ((string)$set->status === 'draft' && $setcanassignreviewers) {
-        $actions[] = html_writer::tag('span', get_string('reviewersrequired', 'local_seminarplaner'), [
-            'class' => 'kg-action-link',
-            'style' => 'color:#b91c1c;font-weight:600',
-        ]);
-    }
-    if (!empty($setreviewrights[$setid])) {
-        if ((string)$set->status === 'review') {
-            $actions[] = html_writer::link(new moodle_url('/local/seminarplaner/reviewrequests.php', [
-                'action' => 'transition',
-                'sesskey' => sesskey(),
-                'methodsetid' => $set->id,
-                'versionid' => $set->currentversion,
-                'tostatus' => 'draft',
-            ]), get_string('backtodraft', 'local_seminarplaner'), ['class' => 'kg-action-link']);
-        }
-    }
-    if ((string)$set->status === 'review' && has_capability('local/seminarplaner:publishset', $syscontext)) {
-        $actions[] = html_writer::link(new moodle_url('/local/seminarplaner/reviewrequests.php', [
-            'action' => 'transition',
-            'sesskey' => sesskey(),
-            'methodsetid' => $set->id,
-            'versionid' => $set->currentversion,
-            'tostatus' => 'published',
-        ]), get_string('publishset', 'local_seminarplaner'), ['class' => 'kg-action-link']);
-    }
-
-    $reviewercell = '-';
-    if ($setcanassignreviewers) {
-        $options = [];
-        foreach ($reviewercandidatesbyset[$setid] as $candidate) {
-            $label = fullname($candidate);
-            if (!empty($candidate->email)) {
-                $label .= ' <' . $candidate->email . '>';
-            }
-            $options[(int)$candidate->id] = $label;
-        }
-
-        $reviewerselectid = 'kg-reviewers-' . $setid;
-        $selectedreviewers = $assignedreviewers[$setid] ?? [];
-        $reviewercell = html_writer::start_tag('form', [
-            'method' => 'post',
-            'action' => (new moodle_url('/local/seminarplaner/reviewrequests.php'))->out(false),
-            'class' => 'kg-reviewer-form',
-        ]);
-        $reviewercell .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
-        $reviewercell .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'assignreviewers']);
-        $reviewercell .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'methodsetid', 'value' => $setid]);
-        $reviewercell .= html_writer::label(get_string('assignreviewers', 'local_seminarplaner'), $reviewerselectid);
-        $dropdownid = 'kg-reviewer-dropdown-' . $setid;
-        $toggleid = 'kg-reviewer-toggle-' . $setid;
-        $panelid = 'kg-reviewer-panel-' . $setid;
-        $reviewercell .= html_writer::start_div('kg-tag-dropdown', [
-            'id' => $dropdownid,
-            'data-kg-reviewer-dropdown' => '1',
-        ]);
-        $reviewercell .= html_writer::tag('button', get_string('assignreviewers', 'local_seminarplaner'), [
-            'type' => 'button',
-            'id' => $toggleid,
-            'class' => 'kg-tag-dropdown-toggle',
-            'data-kg-reviewer-toggle' => '1',
-        ]);
-        $reviewercell .= html_writer::start_div('kg-tag-dropdown-panel kg-hidden', [
-            'id' => $panelid,
-            'data-kg-reviewer-panel' => '1',
-        ]);
-        foreach ($options as $reviewerid => $label) {
-            $checkboxid = $reviewerselectid . '-' . (int)$reviewerid;
-            $attrs = [
-                'type' => 'checkbox',
-                'id' => $checkboxid,
-                'name' => 'reviewerids[]',
-                'value' => (int)$reviewerid,
-                'data-kg-reviewer-checkbox' => '1',
-            ];
-            if (in_array((int)$reviewerid, $selectedreviewers, true)) {
-                $attrs['checked'] = 'checked';
-            }
-            $reviewercell .= html_writer::start_tag('label', ['class' => 'kg-tag-option', 'for' => $checkboxid]);
-            $reviewercell .= html_writer::empty_tag('input', $attrs);
-            $reviewercell .= html_writer::tag('span', s($label));
-            $reviewercell .= html_writer::end_tag('label');
-        }
-        $reviewercell .= html_writer::end_div();
-        $reviewercell .= html_writer::end_div();
-        $reviewercell .= html_writer::empty_tag('input', [
-            'type' => 'submit',
-            'value' => get_string('savereviewers', 'local_seminarplaner'),
-            'class' => 'kg-btn',
-        ]);
-        $reviewercell .= html_writer::end_tag('form');
-    }
-
-    $reviewdiffcell = get_string('reviewdiffnone', 'local_seminarplaner');
-    if (!empty($set->currentversion)) {
-        $currentversion = $repo->get_version((int)$set->currentversion);
-        if ($currentversion) {
-            $baserows = [];
-            $previousversion = $DB->get_record_sql(
-                "SELECT id
-                   FROM {local_kgen_methodset_ver}
-                  WHERE methodsetid = :methodsetid
-                    AND versionnum < :versionnum
-               ORDER BY versionnum DESC",
-                ['methodsetid' => (int)$set->id, 'versionnum' => (int)$currentversion->versionnum],
-                IGNORE_MULTIPLE
-            );
-            if ($previousversion) {
-                $baserows = $DB->get_records('local_kgen_method', [
-                    'methodsetid' => (int)$set->id,
-                    'methodsetversionid' => (int)$previousversion->id,
-                ]);
-            }
-            $newrows = $DB->get_records('local_kgen_method', [
-                'methodsetid' => (int)$set->id,
-                'methodsetversionid' => (int)$set->currentversion,
-            ]);
-            $diff = local_seminarplaner_compute_review_diff($baserows, $newrows);
-            if (!empty($diff['added']) || !empty($diff['changed']) || !empty($diff['removed'])) {
-                $modalid = 'kg-review-diff-modal-' . (int)$set->id;
-                $reviewdiffcell = html_writer::link('#', get_string('reviewdiffopen', 'local_seminarplaner'), [
-                    'class' => 'kg-reviewdiff-link',
-                    'data-kg-open-modal' => $modalid,
-                ]);
-
-                $decisions = [];
-                $records = $DB->get_records('local_kgen_review_decision', [
-                    'methodsetversionid' => (int)$set->currentversion,
-                    'reviewerid' => (int)$USER->id,
-                ]);
-                foreach ($records as $record) {
-                    $decisions[(string)$record->itemkey] = (string)$record->decision;
-                }
-
-                $modalcontent = html_writer::start_tag('form', [
-                    'method' => 'post',
-                    'action' => (new moodle_url('/local/seminarplaner/reviewrequests.php'))->out(false),
-                ]);
-                $modalcontent .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
-                $modalcontent .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'savereviewdecisions']);
-                $modalcontent .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'methodsetid', 'value' => (int)$set->id]);
-                $modalcontent .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'versionid', 'value' => (int)$set->currentversion]);
-                $modalcontent .= html_writer::start_div('kg-review-diff-tools');
-                $modalcontent .= html_writer::tag('button', get_string('reviewacceptallchanges', 'local_seminarplaner'), [
-                    'type' => 'button',
-                    'class' => 'kg-btn kg-btn-primary',
-                    'data-kg-accept-all-decisions' => '1',
-                ]);
-                $modalcontent .= html_writer::end_div();
-                $modalcontent .= html_writer::start_div('kg-review-diff');
-                if (!empty($diff['added'])) {
-                    $modalcontent .= html_writer::tag('div', get_string('reviewdiffnew', 'local_seminarplaner'),
-                        ['class' => 'kg-review-section-title']);
-                    foreach ($diff['added'] as $item) {
-                        $modalcontent .= local_seminarplaner_render_diff_method($item, $decisions);
-                    }
-                }
-                if (!empty($diff['changed'])) {
-                    $modalcontent .= html_writer::tag('div', get_string('reviewdiffchanged', 'local_seminarplaner'),
-                        ['class' => 'kg-review-section-title']);
-                    foreach ($diff['changed'] as $item) {
-                        $modalcontent .= local_seminarplaner_render_diff_method($item, $decisions);
-                    }
-                }
-                if (!empty($diff['removed'])) {
-                    $modalcontent .= html_writer::tag('div', get_string('reviewdiffremoved', 'local_seminarplaner'),
-                        ['class' => 'kg-review-section-title']);
-                    foreach ($diff['removed'] as $item) {
-                        $modalcontent .= local_seminarplaner_render_diff_method($item, $decisions);
-                    }
-                }
-                $modalcontent .= html_writer::end_div();
-                $modalcontent .= html_writer::start_div('kg-modal-actions');
-                $modalcontent .= html_writer::tag('button', get_string('savereviewdecisions', 'local_seminarplaner'), [
-                    'type' => 'submit',
-                    'class' => 'kg-btn kg-btn-primary',
-                ]);
-                $modalcontent .= html_writer::tag('button', get_string('closebuttontitle', 'moodle'), [
-                    'type' => 'button',
-                    'class' => 'kg-modal-close',
-                    'data-kg-close-modal' => $modalid,
-                ]);
-                $modalcontent .= html_writer::end_div();
-                $modalcontent .= html_writer::end_tag('form');
-
-                $diffmodals .= html_writer::start_div('kg-modal kg-hidden', ['id' => $modalid, 'data-kg-modal' => '1']);
-                $diffmodals .= html_writer::start_div('kg-modal-content');
-                $diffmodals .= html_writer::start_div('kg-modal-header');
-                $diffmodals .= html_writer::tag('div',
-                    get_string('reviewdiffpopuptitle', 'local_seminarplaner', format_string($set->displayname)),
-                    ['class' => 'kg-modal-title']);
-                $diffmodals .= html_writer::tag('button', '×', [
-                    'type' => 'button',
-                    'class' => 'kg-modal-close',
-                    'data-kg-close-modal' => $modalid,
-                ]);
-                $diffmodals .= html_writer::end_div();
-                $diffmodals .= $modalcontent;
-                $diffmodals .= html_writer::end_div();
-                $diffmodals .= html_writer::end_div();
-            }
-        }
-    }
-
-    $table->data[] = [
-        (int)$set->id,
-        s((string)$set->shortname),
-        s((string)$set->displayname),
-        s((string)$set->status),
-        $reviewercell,
-        $reviewdiffcell,
-        implode(' | ', $actions),
-    ];
+if ($managerview) {
+    echo html_writer::start_div('kg-section');
+    echo $OUTPUT->heading(get_string('managequeuesheading', 'local_seminarplaner'), 3);
+    echo $OUTPUT->single_button(
+        new moodle_url('/local/seminarplaner/manage.php'),
+        get_string('manageglobalsets', 'local_seminarplaner'),
+        'get'
+    );
+    $managementtable = local_seminarplaner_render_set_table(
+        $managementsets,
+        $repo,
+        $assignedreviewers,
+        $reviewercandidatesbyset,
+        $setmanagerrights,
+        $setsubmitrights,
+        $setreviewrights,
+        $isassignedreviewer,
+        $syscontext,
+        true,
+        'kg-review-diff-manage'
+    );
+    echo $managementtable['table'];
+    $allmodals .= $managementtable['modals'];
+    echo html_writer::end_div();
 }
 
-echo html_writer::table($table);
-echo $diffmodals;
+echo $allmodals;
 
 echo html_writer::script("\n(function() {\n    var roots = document.querySelectorAll('[data-kg-reviewer-dropdown]');\n    var closeAll = function(except) {\n        roots.forEach(function(root) {\n            var panel = root.querySelector('[data-kg-reviewer-panel]');\n            if (!panel) {\n                return;\n            }\n            if (except && root === except) {\n                return;\n            }\n            panel.classList.add('kg-hidden');\n        });\n    };\n    var updateLabel = function(root) {\n        var toggle = root.querySelector('[data-kg-reviewer-toggle]');\n        var checks = root.querySelectorAll('[data-kg-reviewer-checkbox]');\n        if (!toggle || !checks) {\n            return;\n        }\n        var count = 0;\n        checks.forEach(function(chk) {\n            if (chk.checked) {\n                count++;\n            }\n        });\n        toggle.textContent = count ? 'Konzeptverantwortliche (' + count + ')' : 'Konzeptverantwortliche wählen';\n    };\n\n    roots.forEach(function(root) {\n        var toggle = root.querySelector('[data-kg-reviewer-toggle]');\n        var panel = root.querySelector('[data-kg-reviewer-panel]');\n        if (!toggle || !panel) {\n            return;\n        }\n        updateLabel(root);\n        toggle.addEventListener('click', function() {\n            var ishidden = panel.classList.contains('kg-hidden');\n            closeAll(root);\n            panel.classList.toggle('kg-hidden', !ishidden);\n        });\n        root.addEventListener('change', function(event) {\n            var target = event.target;\n            if (!target || target.getAttribute('data-kg-reviewer-checkbox') !== '1') {\n                return;\n            }\n            updateLabel(root);\n        });\n    });\n    document.addEventListener('click', function(event) {\n        var target = event.target;\n        var inside = false;\n        roots.forEach(function(root) {\n            if (root.contains(target)) {\n                inside = true;\n            }\n        });\n        if (!inside) {\n            closeAll(null);\n        }\n    });\n\n    var openers = document.querySelectorAll('[data-kg-open-modal]');\n    var closeModalById = function(id) {\n        if (!id) {\n            return;\n        }\n        var modal = document.getElementById(id);\n        if (!modal) {\n            return;\n        }\n        modal.classList.add('kg-hidden');\n        document.body.style.overflow = '';\n    };\n    openers.forEach(function(opener) {\n        opener.addEventListener('click', function(event) {\n            event.preventDefault();\n            var id = opener.getAttribute('data-kg-open-modal');\n            if (!id) {\n                return;\n            }\n            var modal = document.getElementById(id);\n            if (!modal) {\n                return;\n            }\n            modal.classList.remove('kg-hidden');\n            document.body.style.overflow = 'hidden';\n        });\n    });\n    document.querySelectorAll('[data-kg-close-modal]').forEach(function(btn) {\n        btn.addEventListener('click', function() {\n            closeModalById(btn.getAttribute('data-kg-close-modal'));\n        });\n    });\n    document.querySelectorAll('[data-kg-modal]').forEach(function(modal) {\n        modal.addEventListener('click', function(event) {\n            if (event.target === modal) {\n                closeModalById(modal.id);\n            }\n        });\n    });\n})();\n");
 echo html_writer::script("\n(function() {\n    document.querySelectorAll('[data-kg-accept-all-decisions]').forEach(function(btn) {\n        btn.addEventListener('click', function() {\n            var form = btn.closest('form');\n            if (!form) {\n                return;\n            }\n            form.querySelectorAll('select.kg-diff-decision').forEach(function(select) {\n                select.value = 'accepted';\n            });\n        });\n    });\n})();\n");

@@ -69,12 +69,16 @@ $string['reviewdiffnone'] = 'Keine Unterschiede erkannt';
 $string['reviewdiffopen'] = 'Review-Diff anzeigen';
 $string['reviewdiffpopuptitle'] = 'Review-Diff: {$a}';
 $string['reviewacceptcol'] = 'Annehmen';
+$string['reviewdecisioncol'] = 'Entscheidung';
 $string['reviewdecision_pending'] = 'Offen';
 $string['reviewdecision_accepted'] = 'Annehmen';
 $string['reviewdecision_rejected'] = 'Ablehnen';
 $string['reviewacceptallchanges'] = 'Allen Änderungen zustimmen';
 $string['savereviewdecisions'] = 'Entscheidungen speichern';
 $string['reviewdecisionssaved'] = 'Review-Entscheidungen gespeichert.';
+$string['myreviewsheading'] = 'Meine Reviews';
+$string['myreviewsnone'] = 'Derzeit sind dir keine Methodensets zur Review zugewiesen.';
+$string['managequeuesheading'] = 'Review-Verwaltung';
 $string['reviewfeedback_subject'] = 'Review-Rückmeldung für Methodenset: {$a->setname}';
 $string['reviewfeedback_body'] = 'Hallo,' . "\n\n" .
     'für das Methodenset "{$a->setname}" hat {$a->reviewer} Review-Entscheidungen gespeichert.' . "\n\n" .

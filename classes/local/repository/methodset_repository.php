@@ -119,6 +119,23 @@ class methodset_repository {
     }
 
     /**
+     * List all method sets with optional status filter.
+     *
+     * @param string $status Status filter.
+     * @return array
+     */
+    public function list_all_methodsets(string $status = ''): array {
+        global $DB;
+
+        $conditions = [];
+        if ($status !== '') {
+            $conditions['status'] = $status;
+        }
+
+        return $DB->get_records('local_kgen_methodset', $conditions, 'timemodified DESC');
+    }
+
+    /**
      * Persist method set status.
      *
      * @param int $methodsetid Method set id.
