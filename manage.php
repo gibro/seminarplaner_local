@@ -502,7 +502,7 @@ $table->head = [
     'ID',
     get_string('name'),
     get_string('shortname'),
-    'Anzahl Methoden',
+    'Anzahl Seminareinheiten',
     get_string('publishedbycol', 'local_seminarplaner'),
     get_string('status', 'moodle'),
     get_string('actions'),
