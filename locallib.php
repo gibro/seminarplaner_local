@@ -30,6 +30,59 @@ function local_seminarplaner_split_multi(string $value): array {
 }
 
 /**
+ * Map legacy seminar phase labels to the current five-phase taxonomy.
+ *
+ * @param string $phase Raw phase label.
+ * @return string
+ */
+function local_seminarplaner_normalize_phase(string $phase): string {
+    $phase = trim(strip_tags($phase));
+    if ($phase === '') {
+        return '';
+    }
+
+    $aliases = [
+        'warm-up' => 'Orientierung',
+        'einstieg' => 'Orientierung',
+        'erwartungsabfrage' => 'Erfahrungserhebung',
+        'vorwissen aktivieren' => 'Erfahrungserhebung',
+        'wissen vermitteln' => 'Analyse',
+        'reflexion' => 'Handlungsteil',
+        'evaluation/feedback' => 'Transfer',
+        'evaluation / feedback' => 'Transfer',
+        'abschluss' => 'Transfer',
+    ];
+    $key = core_text::strtolower($phase);
+
+    return $aliases[$key] ?? $phase;
+}
+
+/**
+ * Normalize multiple seminar phase labels while preserving order and uniqueness.
+ *
+ * @param array<int, string> $phases Raw phase labels.
+ * @return array<int, string>
+ */
+function local_seminarplaner_normalize_phases(array $phases): array {
+    $out = [];
+    $seen = [];
+    foreach ($phases as $phase) {
+        $normalized = local_seminarplaner_normalize_phase((string)$phase);
+        if ($normalized === '') {
+            continue;
+        }
+        $key = core_text::strtolower($normalized);
+        if (isset($seen[$key])) {
+            continue;
+        }
+        $seen[$key] = true;
+        $out[] = $normalized;
+    }
+
+    return $out;
+}
+
+/**
  * Get first non-empty value from legacy row key candidates.
  *
  * @param array $row Input row.
@@ -246,7 +299,9 @@ function local_seminarplaner_map_legacy_row(array $row): ?array {
 
     return [
         'title' => $title,
-        'seminarphase' => implode('##', local_seminarplaner_split_multi(local_seminarplaner_row_first($row, ['Seminarphase', 'seminarphase']))),
+        'seminarphase' => implode('##', local_seminarplaner_normalize_phases(
+            local_seminarplaner_split_multi(local_seminarplaner_row_first($row, ['Seminarphase', 'seminarphase']))
+        )),
         'zeitbedarf' => local_seminarplaner_row_first($row, ['Zeitbedarf', 'zeitbedarf']),
         'gruppengroesse' => local_seminarplaner_row_first($row, ['Gruppengröße', 'Gruppengroesse', 'gruppengroesse']),
         'kurzbeschreibung' => local_seminarplaner_row_first($row, ['Kurzbeschreibung', 'kurzbeschreibung']),
@@ -613,7 +668,7 @@ function local_seminarplaner_export_row_from_method(stdClass $row, array $filesb
 
     return [
         (string)($row->title ?? ''),
-        (string)($row->seminarphase ?? ''),
+        implode('##', local_seminarplaner_normalize_phases(local_seminarplaner_split_multi((string)($row->seminarphase ?? '')))),
         (string)($row->zeitbedarf ?? ''),
         (string)($row->gruppengroesse ?? ''),
         (string)($row->kurzbeschreibung ?? ''),
@@ -786,7 +841,9 @@ function local_seminarplaner_send_moddata_export(int $methodsetid, int $versioni
 function local_seminarplaner_method_compare_payload(stdClass $row): array {
     return [
         'title' => trim((string)($row->title ?? '')),
-        'seminarphase' => trim((string)($row->seminarphase ?? '')),
+        'seminarphase' => implode('##', local_seminarplaner_normalize_phases(
+            local_seminarplaner_split_multi((string)($row->seminarphase ?? ''))
+        )),
         'zeitbedarf' => trim((string)($row->zeitbedarf ?? '')),
         'gruppengroesse' => trim((string)($row->gruppengroesse ?? '')),
         'kurzbeschreibung' => trim((string)($row->kurzbeschreibung ?? '')),

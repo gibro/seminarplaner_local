@@ -22,13 +22,13 @@ UI-Bereiche:
 
 - Grid
 - Methodenbibliothek
-- Methodenkarten
+- Seminareinheiten
 - Review
 - Import/Export
 
 Kernfunktionen:
 
-- Anlegen und Verwalten von Methodenkarten in einer Aktivität
+- Anlegen und Verwalten von Seminareinheiten in einer Aktivität
 - Grid-Planung (Seminarplaner) mit nutzerspezifischem Zustand
 - Import globaler Methodensets aus dem `local`-Plugin
 - Review-Einreichung von neuen/geänderten Methoden aus der Aktivität
