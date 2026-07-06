@@ -11,7 +11,7 @@ Stand laut Codebasis:
 - `mod_seminarplaner`: `0.6.6-beta` (`2026030512`)
 - `local_seminarplaner`: `0.2.2-beta` (`2026022305`)
 - Mindestversion Moodle: `4.5` (`$plugin->requires = 2024042200`)
-- Letzte Synchronisierung: `2026-03-05 17:04:22 CET`
+- Letzte Synchronisierung: `2026-05-20 17:41:25 CEST`
 <!-- README_SYNC:END -->
 
 ## Funktionen

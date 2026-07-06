@@ -4,6 +4,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 use local_seminarplaner\local\repository\methodset_repository;
+use local_seminarplaner\local\repository\reviewer_repository;
 use local_seminarplaner\local\service\workflow_service;
 
 /**
@@ -13,17 +14,23 @@ final class local_seminarplaner_workflow_service_test extends advanced_testcase 
     public function test_transition_draft_to_review_to_published(): void {
         $this->resetAfterTest(true);
 
+        $author = $this->getDataGenerator()->create_user();
+        $reviewer = $this->getDataGenerator()->create_user();
+
         $repo = new methodset_repository();
-        $methodsetid = $repo->create_methodset_draft('seta', 'Set A', 'desc', context_system::instance()->id, 2);
-        $versionid = $repo->create_version($methodsetid, 1, 'draft', '{}', 2);
+        $methodsetid = $repo->create_methodset_draft('seta', 'Set A', 'desc', context_system::instance()->id, $author->id);
+        $versionid = $repo->create_version($methodsetid, 1, 'draft', '{}', $author->id);
+
+        $reviewerrepo = new reviewer_repository();
+        $reviewerrepo->replace_reviewers($methodsetid, [$reviewer->id], $author->id);
 
         $service = new workflow_service();
-        $service->transition($methodsetid, $versionid, 'review', 2, 'to review');
+        $service->transition($methodsetid, $versionid, 'review', $author->id, 'to review');
 
         $set = $repo->get_methodset($methodsetid);
         $this->assertSame('review', $set->status);
 
-        $service->transition($methodsetid, $versionid, 'published', 1, 'publish');
+        $service->transition($methodsetid, $versionid, 'published', $reviewer->id, 'publish');
         $set = $repo->get_methodset($methodsetid);
         $this->assertSame('published', $set->status);
     }

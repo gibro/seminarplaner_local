@@ -233,6 +233,7 @@ function local_seminarplaner_build_reviewdiff_payload(
         $modalcontent = html_writer::start_tag('form', [
             'method' => 'post',
             'action' => (new moodle_url('/local/seminarplaner/reviewrequests.php'))->out(false),
+            'class' => 'kg-modal-form',
         ]);
         $modalcontent .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
         $modalcontent .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'savereviewdecisions']);
@@ -245,7 +246,8 @@ function local_seminarplaner_build_reviewdiff_payload(
             'data-kg-accept-all-decisions' => '1',
         ]);
         $modalcontent .= html_writer::end_div();
-        $modalcontent .= local_seminarplaner_render_review_diff_sections($diff, $decisions, true);
+        $modalcontent .= html_writer::div(local_seminarplaner_render_review_diff_sections($diff, $decisions, true),
+            'kg-modal-body');
         $modalcontent .= html_writer::start_div('kg-modal-actions');
         $modalcontent .= html_writer::tag('button', get_string('savereviewdecisions', 'local_seminarplaner'), [
             'type' => 'submit',
@@ -259,7 +261,8 @@ function local_seminarplaner_build_reviewdiff_payload(
         $modalcontent .= html_writer::end_div();
         $modalcontent .= html_writer::end_tag('form');
     } else {
-        $modalcontent = local_seminarplaner_render_review_diff_sections($diff, $decisions, false);
+        $modalcontent = html_writer::div(local_seminarplaner_render_review_diff_sections($diff, $decisions, false),
+            'kg-modal-body');
         $modalcontent .= html_writer::start_div('kg-modal-actions');
         $modalcontent .= html_writer::tag('button', get_string('closebuttontitle', 'moodle'), [
             'type' => 'button',
@@ -779,13 +782,15 @@ echo html_writer::tag('style', '
 .kg-diff-badge-removed{background:#fee2e2;color:#b91c1c}
 .kg-diff-badge-replaced{background:#fef3c7;color:#b45309}
 .kg-diff-decision{min-width:130px}
-.kg-review-diff-tools{display:flex;justify-content:flex-end;margin-bottom:8px}
+.kg-review-diff-tools{display:flex;justify-content:flex-end;margin-bottom:8px;flex-shrink:0}
 .kg-modal{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding:36px 16px}
-.kg-modal-content{background:#fff;border-radius:12px;box-shadow:0 20px 48px rgba(0,0,0,.25);width:min(1200px,96vw);max-height:88vh;overflow:auto;padding:16px}
-.kg-modal-header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.kg-modal-content{background:#fff;border-radius:12px;box-shadow:0 20px 48px rgba(0,0,0,.25);width:min(1200px,96vw);max-height:88vh;overflow:hidden;padding:16px;display:flex;flex-direction:column}
+.kg-modal-form{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+.kg-modal-body{flex:1 1 auto;min-height:0;overflow:auto;border:1px solid #d1d5db;border-radius:8px;padding:10px;background:#f9fafb}
+.kg-modal-header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-shrink:0}
 .kg-modal-title{font-size:18px;font-weight:700}
 .kg-modal-close{border:1px solid #d1d5db;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer}
-.kg-modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.kg-modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-shrink:0}
 .kg-btn,.singlebutton .btn,.kg-row .kg-btn{
   display:inline-flex;align-items:center;justify-content:center;gap:6px;
   min-height:36px;padding:8px 12px;border:1px solid #E3051B;border-radius:8px;
