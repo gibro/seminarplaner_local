@@ -9,6 +9,7 @@
         <FIELD NAME="description" TYPE="text" NOTNULL="false"/>
         <FIELD NAME="scopecontextid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
         <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="draft"/>
+        <FIELD NAME="concepttype" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="sammlung"/>
         <FIELD NAME="currentversion" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>

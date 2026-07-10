@@ -59,5 +59,17 @@ function xmldb_local_seminarplaner_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026022304, 'local', 'seminarplaner');
     }
 
+    if ($oldversion < 2026071001) {
+        // D32: Seminarkonzepte nutzen denselben Review-Mechanismus wie
+        // Methoden-Sammlungen; die Objektart wird am Set vermerkt.
+        $table = new xmldb_table('local_kgen_methodset');
+        $field = new xmldb_field('concepttype', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'sammlung', 'status');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2026071001, 'local', 'seminarplaner');
+    }
+
     return true;
 }
