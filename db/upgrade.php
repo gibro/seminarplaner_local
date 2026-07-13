@@ -76,24 +76,36 @@ function xmldb_local_seminarplaner_upgrade($oldversion) {
         // drei Cluster umrechnen (analog zum mod_seminarplaner-Upgrade).
         // Mapping (Nutzer-Entscheidung): 2–5 → Gruppenarbeit, 6+ → Plenum,
         // Einzelarbeit/unbekannt → beliebig. Inline gehalten.
-        $groupmap = [
-            '1' => 'beliebig',
-            '2-3' => 'Gruppenarbeit (2-5)',
-            '3–5' => 'Gruppenarbeit (2-5)',
-            '6–12' => 'Plenum (10-20)',
-            '13–24' => 'Plenum (10-20)',
-            '25+' => 'Plenum (10-20)',
-            'beliebig' => 'beliebig',
-        ];
-        $newvalues = ['Gruppenarbeit (2-5)' => true, 'Plenum (10-20)' => true, 'beliebig' => true];
+        // Siehe mod_seminarplaner-Upgrade 2026071400: reine Zahlenwerte (auch
+        // Streuwerte) nach Größe einordnen, 1–3-stellig optional mit '+', damit
+        // lange Hash-Strings nicht als Zahl durchgehen, sondern auf "beliebig".
+        $tocluster = static function (string $old): ?string {
+            static $explicit = [
+                '1' => 'beliebig',
+                '2-3' => 'Gruppenarbeit (2-5)',
+                '3–5' => 'Gruppenarbeit (2-5)',
+                '6–12' => 'Plenum (10-20)',
+                '13–24' => 'Plenum (10-20)',
+                '25+' => 'Plenum (10-20)',
+            ];
+            static $isnew = ['Gruppenarbeit (2-5)' => true, 'Plenum (10-20)' => true, 'beliebig' => true];
+            $old = trim($old);
+            if ($old === '' || isset($isnew[$old])) {
+                return null;
+            }
+            if (isset($explicit[$old])) {
+                return $explicit[$old];
+            }
+            if (preg_match('/^(\d{1,3})\+?$/', $old, $m)) {
+                $n = (int)$m[1];
+                return $n <= 1 ? 'beliebig' : ($n <= 5 ? 'Gruppenarbeit (2-5)' : 'Plenum (10-20)');
+            }
+            return 'beliebig';
+        };
         $rs = $DB->get_recordset('local_kgen_method', null, '', 'id, gruppengroesse');
         foreach ($rs as $row) {
-            $old = trim((string)$row->gruppengroesse);
-            if ($old === '' || isset($newvalues[$old])) {
-                continue;
-            }
-            $new = $groupmap[$old] ?? 'beliebig';
-            if ($new !== (string)$row->gruppengroesse) {
+            $new = $tocluster((string)$row->gruppengroesse);
+            if ($new !== null && $new !== (string)$row->gruppengroesse) {
                 $DB->set_field('local_kgen_method', 'gruppengroesse', $new, ['id' => $row->id]);
             }
         }
