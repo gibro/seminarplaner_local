@@ -3,9 +3,9 @@
 // D38: "Methoden-Sammlung" ersetzt "Konzept"/"Methodenset" fuer Sammlungen
 // ohne Ablauf. Der Rollenname "Konzeptverantwortliche" bleibt bestehen.
 $string['pluginname'] = 'Seminarplaner (Global)';
-$string['manageglobalsets'] = 'Globale Methoden-Sammlungen verwalten';
-$string['reviewrequestspage'] = 'Reviewanfragen für globale Methoden-Sammlungen';
-$string['globalmethodsets'] = 'Globale Methoden-Sammlungen';
+$string['manageglobalsets'] = 'Globale Methoden-Sammlungen und Seminarkonzepte verwalten';
+$string['reviewrequestspage'] = 'Reviewanfragen für globale Sammlungen und Konzepte';
+$string['globalmethodsets'] = 'Globale Methoden-Sammlungen und Seminarkonzepte';
 $string['globalmethodsetsview'] = 'Globale Methoden-Sammlungen anzeigen';
 $string['createdraftset'] = 'Leere Methoden-Sammlung erstellen';
 $string['draftcreated'] = 'Entwurf der Methoden-Sammlung erstellt (ID: {$a})';
@@ -52,10 +52,12 @@ $string['importerrordraftrequired'] = 'Import ist nur in Methoden-Sammlungen im 
 $string['importerrornofile'] = 'Keine Importdatei hochgeladen.';
 $string['importerrornomethods'] = 'Keine importierbaren Seminareinheiten in der Datei gefunden.';
 $string['deletemethodset'] = 'Methoden-Sammlung löschen';
-$string['deleteconfirm'] = 'Methoden-Sammlung "{$a}" und alle enthaltenen Daten wirklich löschen?';
-$string['deleteok'] = 'Methoden-Sammlung {$a} wurde gelöscht.';
-$string['renamemethodset'] = 'Methoden-Sammlung umbenennen';
-$string['renameerrornoname'] = 'Bitte einen neuen Namen für die Methoden-Sammlung eingeben.';
+$string['deleteseminarkonzept'] = 'Seminarkonzept löschen';
+$string['deleteconfirm'] = '„{$a}" und alle enthaltenen Daten wirklich löschen?';
+$string['deleteok'] = '„{$a}" wurde gelöscht.';
+$string['renamemethodset'] = 'Umbenennen';
+$string['renameerrornoname'] = 'Bitte einen Namen eingeben.';
+$string['editok'] = '„{$a->name}" gespeichert (Typ: {$a->typ}).';
 $string['renameok'] = 'Methoden-Sammlung umbenannt: "{$a->oldname}" -> "{$a->newname}".';
 $string['methodcountcol'] = 'Anzahl Karten';
 $string['reviewerscol'] = 'Konzeptverantwortliche';
@@ -63,7 +65,6 @@ $string['publishedbycol'] = 'Veröffentlicht von';
 $string['concepttypecol'] = 'Typ';
 $string['concepttype_sammlung'] = 'Methoden-Sammlung';
 $string['concepttype_seminarkonzept'] = 'Seminarkonzept';
-$string['concepttypesaved'] = 'Typ von „{$a->name}" auf „{$a->typ}" gesetzt.';
 $string['assignreviewers'] = 'Konzeptverantwortliche zuordnen';
 $string['savereviewers'] = 'Konzeptverantwortliche speichern';
 $string['reviewersassigned'] = 'Konzeptverantwortliche gespeichert ({$a}).';
