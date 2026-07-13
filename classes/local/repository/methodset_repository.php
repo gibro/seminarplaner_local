@@ -161,6 +161,30 @@ class methodset_repository {
     }
 
     /**
+     * Persist the object kind (D32/D57): 'sammlung' or 'seminarkonzept'.
+     *
+     * Steuert die Bibliotheks-Behandlung im mod-Plugin (Methoden-Sammlungen sind
+     * immer durchsuchbar, Seminarkonzepte nur nach explizitem Import, D55).
+     *
+     * @param int $methodsetid Method set id.
+     * @param string $concepttype 'sammlung' or 'seminarkonzept'.
+     * @param int $actorid Actor user id.
+     * @return bool
+     */
+    public function update_methodset_concepttype(int $methodsetid, string $concepttype, int $actorid): bool {
+        global $DB;
+
+        $record = (object)[
+            'id' => $methodsetid,
+            'concepttype' => $concepttype === 'seminarkonzept' ? 'seminarkonzept' : 'sammlung',
+            'timemodified' => time(),
+            'modifiedby' => $actorid,
+        ];
+
+        return $DB->update_record('local_kgen_methodset', $record);
+    }
+
+    /**
      * Persist version status and reviewer/publisher marker.
      *
      * @param int $versionid Version id.

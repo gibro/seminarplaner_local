@@ -198,6 +198,34 @@ if ($action === 'renamemethodset' && confirm_sesskey()) {
     }
 }
 
+// D57/D55: Objektart (Methoden-Sammlung vs. Seminarkonzept) je Set festlegen.
+// Steuert die Bibliotheks-Behandlung im mod-Plugin (Sammlungen immer durchsuchbar,
+// Konzepte nur nach explizitem Import).
+if ($action === 'setconcepttype' && confirm_sesskey()) {
+    if (!has_capability('local/seminarplaner:editdraftset', $syscontext) &&
+            !has_capability('local/seminarplaner:archiveglobalset', $syscontext)) {
+        throw new required_capability_exception($syscontext, 'local/seminarplaner:editdraftset', 'nopermissions', '');
+    }
+    $methodsetid = required_param('methodsetid', PARAM_INT);
+    $concepttype = optional_param('concepttype', 'sammlung', PARAM_ALPHA);
+    $concepttype = $concepttype === 'seminarkonzept' ? 'seminarkonzept' : 'sammlung';
+
+    try {
+        $methodset = $repo->get_methodset($methodsetid);
+        if (!$methodset) {
+            throw new moodle_exception('invalidparameter');
+        }
+        $repo->update_methodset_concepttype((int)$methodsetid, $concepttype, (int)$USER->id);
+        $message = get_string('concepttypesaved', 'local_seminarplaner', (object)[
+            'name' => (string)$methodset->displayname,
+            'typ' => get_string('concepttype_' . $concepttype, 'local_seminarplaner'),
+        ]);
+    } catch (Throwable $e) {
+        $message = $e->getMessage();
+        $error = true;
+    }
+}
+
 if ($action === 'importmoddata_newset' && confirm_sesskey()) {
     require_capability('local/seminarplaner:importglobalset', $syscontext);
     require_capability('local/seminarplaner:createdraftset', $syscontext);
@@ -501,6 +529,7 @@ $table = new html_table();
 $table->head = [
     'ID',
     get_string('name'),
+    get_string('concepttypecol', 'local_seminarplaner'),
     get_string('shortname'),
     'Anzahl Seminareinheiten',
     get_string('publishedbycol', 'local_seminarplaner'),
@@ -617,9 +646,40 @@ foreach ($methodsets as $set) {
     }
     $shortnamecell .= html_writer::end_div();
 
+    // D57/D55: Objektart-Auswahl (Methoden-Sammlung vs. Seminarkonzept).
+    $currenttype = ((string)($set->concepttype ?? 'sammlung') === 'seminarkonzept') ? 'seminarkonzept' : 'sammlung';
+    if ($canrename) {
+        $typcell = html_writer::start_tag('form', [
+            'method' => 'post',
+            'action' => (new moodle_url('/local/seminarplaner/manage.php'))->out(false),
+            'class' => 'kg-concepttype-form',
+        ]);
+        $typcell .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+        $typcell .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'setconcepttype']);
+        $typcell .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'methodsetid', 'value' => (int)$set->id]);
+        $typcell .= html_writer::select([
+            'sammlung' => get_string('concepttype_sammlung', 'local_seminarplaner'),
+            'seminarkonzept' => get_string('concepttype_seminarkonzept', 'local_seminarplaner'),
+        ], 'concepttype', $currenttype, false, [
+            'class' => 'kg-concepttype-select',
+            'onchange' => 'this.form.submit();',
+            'aria-label' => get_string('concepttypecol', 'local_seminarplaner'),
+        ]);
+        // Fallback ohne JavaScript.
+        $typcell .= html_writer::empty_tag('input', [
+            'type' => 'submit',
+            'value' => get_string('save'),
+            'class' => 'kg-btn kg-concepttype-save',
+        ]);
+        $typcell .= html_writer::end_tag('form');
+    } else {
+        $typcell = s(get_string('concepttype_' . $currenttype, 'local_seminarplaner'));
+    }
+
     $table->data[] = [
         $set->id,
         $namecell,
+        $typcell,
         $shortnamecell,
         $methodcount,
         s($publishedbyname),
