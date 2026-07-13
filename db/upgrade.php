@@ -71,5 +71,36 @@ function xmldb_local_seminarplaner_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026071001, 'local', 'seminarplaner');
     }
 
+    if ($oldversion < 2026071400) {
+        // Gruppengröße der globalen Methoden von der alten 7-Werte-Skala auf
+        // drei Cluster umrechnen (analog zum mod_seminarplaner-Upgrade).
+        // Mapping (Nutzer-Entscheidung): 2–5 → Gruppenarbeit, 6+ → Plenum,
+        // Einzelarbeit/unbekannt → beliebig. Inline gehalten.
+        $groupmap = [
+            '1' => 'beliebig',
+            '2-3' => 'Gruppenarbeit (2-5)',
+            '3–5' => 'Gruppenarbeit (2-5)',
+            '6–12' => 'Plenum (10-20)',
+            '13–24' => 'Plenum (10-20)',
+            '25+' => 'Plenum (10-20)',
+            'beliebig' => 'beliebig',
+        ];
+        $newvalues = ['Gruppenarbeit (2-5)' => true, 'Plenum (10-20)' => true, 'beliebig' => true];
+        $rs = $DB->get_recordset('local_kgen_method', null, '', 'id, gruppengroesse');
+        foreach ($rs as $row) {
+            $old = trim((string)$row->gruppengroesse);
+            if ($old === '' || isset($newvalues[$old])) {
+                continue;
+            }
+            $new = $groupmap[$old] ?? 'beliebig';
+            if ($new !== (string)$row->gruppengroesse) {
+                $DB->set_field('local_kgen_method', 'gruppengroesse', $new, ['id' => $row->id]);
+            }
+        }
+        $rs->close();
+
+        upgrade_plugin_savepoint(true, 2026071400, 'local', 'seminarplaner');
+    }
+
     return true;
 }
