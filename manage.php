@@ -166,13 +166,19 @@ if ($action === 'delete' && confirm_sesskey()) {
     }
 }
 
-if ($action === 'renamemethodset' && confirm_sesskey()) {
+// D57/D55: Name UND Objektart (Methoden-Sammlung vs. Seminarkonzept) eines
+// globalen Eintrags gemeinsam über den Bearbeiten-Stift ändern. Der Typ steuert
+// die Bibliotheks-Behandlung im mod-Plugin (Sammlungen immer durchsuchbar,
+// Seminarkonzepte nur nach explizitem Import).
+if ($action === 'editmethodset' && confirm_sesskey()) {
     if (!has_capability('local/seminarplaner:editdraftset', $syscontext) &&
             !has_capability('local/seminarplaner:archiveglobalset', $syscontext)) {
         throw new required_capability_exception($syscontext, 'local/seminarplaner:editdraftset', 'nopermissions', '');
     }
     $methodsetid = required_param('methodsetid', PARAM_INT);
     $newdisplayname = trim((string)optional_param('newdisplayname', '', PARAM_TEXT));
+    $concepttype = optional_param('concepttype', 'sammlung', PARAM_ALPHA);
+    $concepttype = $concepttype === 'seminarkonzept' ? 'seminarkonzept' : 'sammlung';
 
     try {
         if ($newdisplayname === '') {
@@ -185,12 +191,13 @@ if ($action === 'renamemethodset' && confirm_sesskey()) {
         $DB->update_record('local_kgen_methodset', (object)[
             'id' => (int)$methodsetid,
             'displayname' => $newdisplayname,
+            'concepttype' => $concepttype,
             'timemodified' => time(),
             'modifiedby' => (int)$USER->id,
         ]);
-        $message = get_string('renameok', 'local_seminarplaner', (object)[
-            'oldname' => (string)$methodset->displayname,
-            'newname' => $newdisplayname,
+        $message = get_string('editok', 'local_seminarplaner', (object)[
+            'name' => $newdisplayname,
+            'typ' => get_string('concepttype_' . $concepttype, 'local_seminarplaner'),
         ]);
     } catch (Throwable $e) {
         $message = $e->getMessage();
@@ -457,6 +464,13 @@ echo html_writer::tag('style', '
 .kg-name-edit-btn:hover{border:0;background:transparent;color:#2F80AB}
 .kg-name-edit-btn .icon{margin:0}
 .kg-inline-rename .kg-btn{margin-top:0;margin-bottom:0}
+.kg-inline-edit{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;padding:10px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb}
+.kg-inline-edit input[type=\"text\"]{min-width:180px;max-width:260px;padding:8px;border:1px solid #d1d5db;border-radius:8px}
+.kg-inline-edit select{padding:8px;border:1px solid #d1d5db;border-radius:8px}
+.kg-inline-edit__label{font-size:12px;font-weight:600;color:#374151;margin:0}
+.kg-inline-edit .kg-btn{margin-top:0;margin-bottom:0}
+.kg-inline-edit-toggle{gap:4px}
+.kg-inline-edit-toggle span{font-size:13px}
 .kg-btn,.kg-admin-card input[type=\"submit\"],.kg-admin-card button:not(.kg-name-edit-btn),.kg-row .kg-btn{
   display:inline-flex;align-items:center;justify-content:center;gap:6px;
   min-height:36px;padding:8px 12px;border:1px solid #E3051B;border-radius:8px;
@@ -501,6 +515,7 @@ $table = new html_table();
 $table->head = [
     'ID',
     get_string('name'),
+    get_string('concepttypecol', 'local_seminarplaner'),
     get_string('shortname'),
     'Anzahl Seminareinheiten',
     get_string('publishedbycol', 'local_seminarplaner'),
@@ -554,83 +569,96 @@ foreach ($methodsets as $set) {
         }
     }
 
+    // D57/D55: aktuelle Objektart (Methoden-Sammlung vs. Seminarkonzept).
+    $currenttype = ((string)($set->concepttype ?? 'sammlung') === 'seminarkonzept') ? 'seminarkonzept' : 'sammlung';
+    $typelabel = get_string('concepttype_' . $currenttype, 'local_seminarplaner');
+
+    $canedit = has_capability('local/seminarplaner:editdraftset', $syscontext) ||
+        has_capability('local/seminarplaner:archiveglobalset', $syscontext);
+
+    // Bearbeiten-Stift ganz rechts (in den Aktionen): klappt ein Formular auf,
+    // in dem Name UND Typ gemeinsam geändert werden.
+    $editform = '';
+    if ($canedit) {
+        $editformid = 'kg-inline-edit-' . (int)$set->id;
+        $editinputid = 'kg-inline-edit-input-' . (int)$set->id;
+        $editform = html_writer::start_tag('form', [
+            'method' => 'post',
+            'action' => (new moodle_url('/local/seminarplaner/manage.php'))->out(false),
+            'class' => 'kg-inline-edit kg-hidden',
+            'id' => $editformid,
+        ]);
+        $editform .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+        $editform .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'editmethodset']);
+        $editform .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'methodsetid', 'value' => (int)$set->id]);
+        $editform .= html_writer::tag('label', get_string('name'), ['for' => $editinputid, 'class' => 'kg-inline-edit__label']);
+        $editform .= html_writer::empty_tag('input', [
+            'type' => 'text',
+            'id' => $editinputid,
+            'name' => 'newdisplayname',
+            'value' => (string)$set->displayname,
+            'maxlength' => 255,
+            'required' => 'required',
+            'data-kg-edit-input' => '1',
+        ]);
+        $editform .= html_writer::tag('label', get_string('concepttypecol', 'local_seminarplaner'), ['class' => 'kg-inline-edit__label']);
+        $editform .= html_writer::select([
+            'sammlung' => get_string('concepttype_sammlung', 'local_seminarplaner'),
+            'seminarkonzept' => get_string('concepttype_seminarkonzept', 'local_seminarplaner'),
+        ], 'concepttype', $currenttype, false, ['class' => 'kg-inline-edit__type']);
+        $editform .= html_writer::empty_tag('input', [
+            'type' => 'submit',
+            'value' => get_string('save'),
+            'class' => 'kg-btn',
+        ]);
+        $editform .= html_writer::end_tag('form');
+
+        $actions[] = html_writer::tag('button',
+            $OUTPUT->pix_icon('t/editstring', get_string('edit')) . html_writer::tag('span', get_string('edit')),
+            [
+                'type' => 'button',
+                'class' => 'kg-name-edit-btn kg-inline-edit-toggle',
+                'data-kg-edit-toggle' => $editformid,
+                'aria-controls' => $editformid,
+                'aria-label' => get_string('edit') . ': ' . s($set->displayname),
+            ]
+        );
+    }
+
+    // Löschen - Bezeichnung je nach Objektart.
     if (has_capability('local/seminarplaner:archiveglobalset', $syscontext)) {
+        $deletelabel = $currenttype === 'seminarkonzept'
+            ? get_string('deleteseminarkonzept', 'local_seminarplaner')
+            : get_string('deletemethodset', 'local_seminarplaner');
         $actions[] = html_writer::link(new moodle_url('/local/seminarplaner/manage.php', [
             'action' => 'delete',
             'sesskey' => sesskey(),
             'methodsetid' => $set->id,
-        ]), get_string('deletemethodset', 'local_seminarplaner'), [
+        ]), $deletelabel, [
             'class' => 'kg-action-link',
             'onclick' => "return confirm(" . json_encode(get_string('deleteconfirm', 'local_seminarplaner', $set->displayname)) . ");",
         ]);
     }
 
-    $canrename = has_capability('local/seminarplaner:editdraftset', $syscontext) ||
-        has_capability('local/seminarplaner:archiveglobalset', $syscontext);
-    $renameform = '';
-    $namecell = s($set->displayname);
-    if ($canrename) {
-        $renameformid = 'kg-inline-rename-' . (int)$set->id;
-        $renameinputid = 'kg-inline-rename-input-' . (int)$set->id;
-        $renameform = html_writer::start_tag('form', [
-            'method' => 'post',
-            'action' => (new moodle_url('/local/seminarplaner/manage.php'))->out(false),
-            'class' => 'kg-inline-rename kg-hidden',
-            'id' => $renameformid,
-        ]);
-        $renameform .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
-        $renameform .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'renamemethodset']);
-        $renameform .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'methodsetid', 'value' => (int)$set->id]);
-        $renameform .= html_writer::empty_tag('input', [
-            'type' => 'text',
-            'id' => $renameinputid,
-            'name' => 'newdisplayname',
-            'value' => (string)$set->displayname,
-            'maxlength' => 255,
-            'required' => 'required',
-            'data-kg-rename-input' => '1',
-            'aria-label' => get_string('renamemethodset', 'local_seminarplaner'),
-        ]);
-        $renameform .= html_writer::empty_tag('input', [
-            'type' => 'submit',
-            'value' => get_string('renamemethodset', 'local_seminarplaner'),
-            'class' => 'kg-btn',
-        ]);
-        $renameform .= html_writer::end_tag('form');
-
-        $editbutton = html_writer::tag('button',
-            $OUTPUT->pix_icon('t/editstring', get_string('edit')),
-            [
-                'type' => 'button',
-                'class' => 'kg-name-edit-btn',
-                'data-kg-rename-toggle' => $renameformid,
-                'aria-controls' => $renameformid,
-                'aria-label' => get_string('renamemethodset', 'local_seminarplaner'),
-            ]
-        );
-        $namecell = html_writer::tag('span', s($set->displayname) . $editbutton, ['class' => 'kg-name-with-edit']);
-    }
     $shortnamecell = html_writer::start_div('kg-shortname-cell');
     $shortnamecell .= html_writer::tag('span', s($set->shortname));
-    if ($renameform !== '') {
-        $shortnamecell .= $renameform;
-    }
     $shortnamecell .= html_writer::end_div();
 
     $table->data[] = [
         $set->id,
-        $namecell,
+        s($set->displayname),
+        s($typelabel),
         $shortnamecell,
         $methodcount,
         s($publishedbyname),
         s($set->status),
-        implode(' | ', $actions),
+        implode(' | ', $actions) . $editform,
     ];
 }
 
 echo html_writer::table($table);
 echo html_writer::end_div();
-echo html_writer::script("\n(function() {\n    document.querySelectorAll('[data-kg-rename-toggle]').forEach(function(btn) {\n        btn.addEventListener('click', function() {\n            var targetid = btn.getAttribute('data-kg-rename-toggle');\n            if (!targetid) {\n                return;\n            }\n            var form = document.getElementById(targetid);\n            if (!form) {\n                return;\n            }\n            form.classList.toggle('kg-hidden');\n            if (!form.classList.contains('kg-hidden')) {\n                var input = form.querySelector('[data-kg-rename-input]');\n                if (input) {\n                    input.focus();\n                    if (input.select) {\n                        input.select();\n                    }\n                }\n            }\n        });\n    });\n})();\n");
+echo html_writer::script("\n(function() {\n    document.querySelectorAll('[data-kg-edit-toggle]').forEach(function(btn) {\n        btn.addEventListener('click', function() {\n            var targetid = btn.getAttribute('data-kg-edit-toggle');\n            if (!targetid) {\n                return;\n            }\n            var form = document.getElementById(targetid);\n            if (!form) {\n                return;\n            }\n            form.classList.toggle('kg-hidden');\n            if (!form.classList.contains('kg-hidden')) {\n                var input = form.querySelector('[data-kg-edit-input]');\n                if (input) {\n                    input.focus();\n                    if (input.select) {\n                        input.select();\n                    }\n                }\n            }\n        });\n    });\n})();\n");
 
 if (has_capability('local/seminarplaner:importglobalset', $syscontext)) {
     echo html_writer::start_div('kg-admin-card');

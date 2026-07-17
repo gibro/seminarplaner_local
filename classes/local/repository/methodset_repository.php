@@ -17,10 +17,11 @@ class methodset_repository {
      * @param string $description Description.
      * @param int $scopecontextid Scope context id.
      * @param int $actorid Actor user id.
+     * @param string $concepttype Object kind (D32): 'sammlung' or 'seminarkonzept'.
      * @return int
      */
     public function create_methodset_draft(string $shortname, string $displayname, string $description, int $scopecontextid,
-        int $actorid): int {
+        int $actorid, string $concepttype = 'sammlung'): int {
         global $DB;
 
         $now = time();
@@ -30,6 +31,9 @@ class methodset_repository {
             'description' => $description,
             'scopecontextid' => $scopecontextid,
             'status' => 'draft',
+            // D32: Seminarkonzepte (kompletter Plan inkl. Sequenz im Snapshot)
+            // laufen über denselben Mechanismus wie Methoden-Sammlungen.
+            'concepttype' => $concepttype === 'seminarkonzept' ? 'seminarkonzept' : 'sammlung',
             'currentversion' => 0,
             'timecreated' => $now,
             'timemodified' => $now,
@@ -149,6 +153,30 @@ class methodset_repository {
         $record = (object)[
             'id' => $methodsetid,
             'status' => $status,
+            'timemodified' => time(),
+            'modifiedby' => $actorid,
+        ];
+
+        return $DB->update_record('local_kgen_methodset', $record);
+    }
+
+    /**
+     * Persist the object kind (D32/D57): 'sammlung' or 'seminarkonzept'.
+     *
+     * Steuert die Bibliotheks-Behandlung im mod-Plugin (Methoden-Sammlungen sind
+     * immer durchsuchbar, Seminarkonzepte nur nach explizitem Import, D55).
+     *
+     * @param int $methodsetid Method set id.
+     * @param string $concepttype 'sammlung' or 'seminarkonzept'.
+     * @param int $actorid Actor user id.
+     * @return bool
+     */
+    public function update_methodset_concepttype(int $methodsetid, string $concepttype, int $actorid): bool {
+        global $DB;
+
+        $record = (object)[
+            'id' => $methodsetid,
+            'concepttype' => $concepttype === 'seminarkonzept' ? 'seminarkonzept' : 'sammlung',
             'timemodified' => time(),
             'modifiedby' => $actorid,
         ];
