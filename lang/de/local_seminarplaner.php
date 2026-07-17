@@ -10,6 +10,7 @@ $string['globalmethodsetsview'] = 'Globale Methoden-Sammlungen anzeigen';
 $string['createdraftset'] = 'Leere Methoden-Sammlung erstellen';
 $string['draftcreated'] = 'Entwurf der Methoden-Sammlung erstellt (ID: {$a})';
 $string['transitionok'] = 'Statusübergang erfolgreich durchgeführt';
+$string['transitionstale'] = 'Der Status dieser Sammlung hat sich inzwischen geändert – vermutlich wurde sie in einem anderen Tab oder von jemand anderem bearbeitet. Bitte lade die Seite neu und versuche es erneut.';
 $string['submitforreview'] = 'Zur Review einreichen';
 $string['publishset'] = 'Veröffentlichen';
 $string['backtodraft'] = 'Zurück zu Entwurf';

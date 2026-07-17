@@ -8,6 +8,7 @@ $string['globalmethodsetsview'] = 'Show global method sets';
 $string['createdraftset'] = 'Create empty method set';
 $string['draftcreated'] = 'Draft set created (ID: {$a})';
 $string['transitionok'] = 'Status transition completed successfully';
+$string['transitionstale'] = 'The status of this set has changed in the meantime - it was probably edited in another tab or by someone else. Please reload the page and try again.';
 $string['submitforreview'] = 'Submit for review';
 $string['publishset'] = 'Publish';
 $string['backtodraft'] = 'Back to draft';
