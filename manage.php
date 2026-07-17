@@ -248,7 +248,7 @@ if ($action === 'importmoddata_newset' && confirm_sesskey()) {
 
         $methodsetid = $repo->create_methodset_draft($shortname, $displayname, $description, (int)$syscontext->id, (int)$USER->id);
         $versionid = $repo->create_version($methodsetid, 1, 'draft', '{}', (int)$USER->id);
-        $count = local_seminarplaner_import_records_to_set(
+        $importresult = local_seminarplaner_import_records_to_set(
             (int)$methodsetid,
             (int)$versionid,
             (int)$USER->id,
@@ -256,7 +256,7 @@ if ($action === 'importmoddata_newset' && confirm_sesskey()) {
             $zipfiles
         );
         $message = get_string('importnewsetok', 'local_seminarplaner', (object)[
-            'count' => $count,
+            'count' => (int)$importresult['created'],
             'id' => $methodsetid,
         ]);
     } catch (Throwable $e) {
@@ -320,14 +320,19 @@ if ($action === 'importmoddata_existingset' && confirm_sesskey()) {
             throw new moodle_exception('importerrornomethods', 'local_seminarplaner');
         }
 
-        $count = local_seminarplaner_import_records_to_set(
+        $importresult = local_seminarplaner_import_records_to_set(
             (int)$methodsetid,
             $targetversionid,
             (int)$USER->id,
             $records,
-            $zipfiles
+            $zipfiles,
+            'upsert'
         );
-        $message = get_string('importok', 'local_seminarplaner', $count);
+        $message = get_string('importupsertok', 'local_seminarplaner', (object)[
+            'created' => (int)$importresult['created'],
+            'updated' => (int)$importresult['updated'],
+            'files' => (int)$importresult['files'],
+        ]);
     } catch (Throwable $e) {
         $message = $e->getMessage();
         $error = true;

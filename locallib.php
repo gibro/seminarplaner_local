@@ -9,6 +9,24 @@ const LOCAL_SEMINARPLANER_IMPORT_MAX_ZIP_ENTRIES = 2000;
 const LOCAL_SEMINARPLANER_IMPORT_MAX_ROWS = 5000;
 
 /**
+ * Build the comparison key used to match an imported row against an existing method.
+ *
+ * Case and surrounding/duplicated whitespace are ignored so that "Blitzlicht " and
+ * "blitzlicht" are treated as the same seminar unit.
+ *
+ * @param string $title Method title.
+ * @return string Normalized key, empty string if the title carries no content.
+ */
+function local_seminarplaner_normalize_title_key(string $title): string {
+    $title = trim(strip_tags($title));
+    if ($title === '') {
+        return '';
+    }
+    $title = (string)preg_replace('/\s+/u', ' ', $title);
+    return core_text::strtolower($title);
+}
+
+/**
  * Split legacy multi-value text into normalized lines.
  *
  * @param string $value Raw field value.
@@ -535,19 +553,38 @@ function local_seminarplaner_next_file_itemid(string $filearea): int {
  * @param int $userid User id.
  * @param array $filenames Requested filenames from CSV.
  * @param array $zipfiles ZIP basename=>content map.
+ * @param bool $reuseexisting Add to the method's existing file area instead of starting a new one.
  * @return int Number of files stored.
  */
-function local_seminarplaner_store_import_files(int $methodid, string $kind, int $userid, array $filenames, array $zipfiles): int {
+function local_seminarplaner_store_import_files(int $methodid, string $kind, int $userid, array $filenames,
+    array $zipfiles, bool $reuseexisting = false): int {
     global $DB;
 
     $filenames = array_values(array_unique(array_filter(array_map('trim', $filenames))));
     if (!$filenames) {
         return 0;
     }
+    $kind = $kind === 'h5p' ? 'h5p' : 'material';
     $filearea = $kind === 'h5p' ? 'method_h5p' : 'method_material';
     $contextid = context_system::instance()->id;
     $fs = get_file_storage();
-    $itemid = local_seminarplaner_next_file_itemid($filearea);
+
+    // When updating an existing method, keep its attachments and add to the same area.
+    $itemid = 0;
+    $haslink = false;
+    if ($reuseexisting) {
+        $links = $DB->get_records('local_kgen_method_file', ['methodid' => $methodid, 'kind' => $kind],
+            'id ASC', 'id, fileitemid', 0, 1);
+        $link = reset($links);
+        if ($link) {
+            $itemid = (int)$link->fileitemid;
+            $haslink = true;
+        }
+    }
+    if ($itemid <= 0) {
+        $itemid = local_seminarplaner_next_file_itemid($filearea);
+        $haslink = false;
+    }
     $storedcount = 0;
 
     foreach ($filenames as $filename) {
@@ -564,6 +601,11 @@ function local_seminarplaner_store_import_files(int $methodid, string $kind, int
             continue;
         }
         $content = (string)$zipfiles[$lookup];
+        // A file of the same name is replaced, so a repeated import does not stack copies.
+        $existingfile = $fs->get_file($contextid, 'local_seminarplaner', $filearea, $itemid, '/', $filename);
+        if ($existingfile) {
+            $existingfile->delete();
+        }
         $filerecord = (object)[
             'contextid' => $contextid,
             'component' => 'local_seminarplaner',
@@ -577,10 +619,10 @@ function local_seminarplaner_store_import_files(int $methodid, string $kind, int
         $storedcount++;
     }
 
-    if ($storedcount > 0) {
+    if ($storedcount > 0 && !$haslink) {
         $DB->insert_record('local_kgen_method_file', (object)[
             'methodid' => $methodid,
-            'kind' => $kind === 'h5p' ? 'h5p' : 'material',
+            'kind' => $kind,
             'fileitemid' => $itemid,
             'timecreated' => time(),
         ]);
@@ -592,24 +634,48 @@ function local_seminarplaner_store_import_files(int $methodid, string $kind, int
 /**
  * Import mapped method records into a method set/version.
  *
+ * In 'upsert' mode a record whose title matches an existing method of the target version
+ * updates that method instead of adding a second one: non-empty columns overwrite the
+ * previous value, empty columns are left alone, and attachments are added to the method's
+ * existing file area. In 'insert' mode every record is added as a new method.
+ *
  * @param int $methodsetid Method set id.
  * @param int $versionid Method set version id.
  * @param int $userid Importing user id.
  * @param array $records Mapped records.
- * @return int
+ * @param array $zipfiles ZIP basename=>content map.
+ * @param string $mode insert|upsert.
+ * @return array Counters: created, updated, files.
  */
 function local_seminarplaner_import_records_to_set(
     int $methodsetid,
     int $versionid,
     int $userid,
     array $records,
-    array $zipfiles = []
-): int {
+    array $zipfiles = [],
+    string $mode = 'insert'
+): array {
     global $DB;
+
+    $upsert = ($mode === 'upsert');
+    $existingbytitle = [];
+    if ($upsert) {
+        $existingrows = $DB->get_records('local_kgen_method', [
+            'methodsetid' => $methodsetid,
+            'methodsetversionid' => $versionid,
+        ], 'id ASC', 'id, title');
+        foreach ($existingrows as $existingrow) {
+            $key = local_seminarplaner_normalize_title_key((string)$existingrow->title);
+            // On duplicate titles the oldest method wins, so a repeated import stays stable.
+            if ($key !== '' && !array_key_exists($key, $existingbytitle)) {
+                $existingbytitle[$key] = (int)$existingrow->id;
+            }
+        }
+    }
 
     $transaction = $DB->start_delegated_transaction();
     $now = time();
-    $count = 0;
+    $result = ['created' => 0, 'updated' => 0, 'files' => 0];
     foreach ($records as $rec) {
         $materialfiles = [];
         if (!empty($rec['__materialfiles']) && is_array($rec['__materialfiles'])) {
@@ -617,25 +683,53 @@ function local_seminarplaner_import_records_to_set(
         }
         unset($rec['__materialfiles'], $rec['__h5pfiles']);
 
-        $record = (object)array_merge($rec, [
-            'methodsetid' => $methodsetid,
-            'methodsetversionid' => $versionid,
-            'externalref' => null,
-            'metadatakeyvaluesjson' => null,
-            'h5pcontentid' => null,
-            'timecreated' => $now,
-            'timemodified' => $now,
-            'createdby' => $userid,
-            'modifiedby' => $userid,
-        ]);
-        $methodid = (int)$DB->insert_record('local_kgen_method', $record);
-        if (!empty($zipfiles)) {
-            local_seminarplaner_store_import_files($methodid, 'material', $userid, $materialfiles, $zipfiles);
+        $titlekey = $upsert ? local_seminarplaner_normalize_title_key((string)($rec['title'] ?? '')) : '';
+        $existingid = ($titlekey !== '') ? (int)($existingbytitle[$titlekey] ?? 0) : 0;
+
+        if ($existingid > 0) {
+            $update = ['id' => $existingid];
+            foreach ($rec as $field => $value) {
+                if (trim((string)$value) === '') {
+                    continue;
+                }
+                $update[$field] = $value;
+            }
+            $update['timemodified'] = $now;
+            $update['modifiedby'] = $userid;
+            $DB->update_record('local_kgen_method', (object)$update);
+            $methodid = $existingid;
+            $result['updated']++;
+        } else {
+            $record = (object)array_merge($rec, [
+                'methodsetid' => $methodsetid,
+                'methodsetversionid' => $versionid,
+                'externalref' => null,
+                'metadatakeyvaluesjson' => null,
+                'h5pcontentid' => null,
+                'timecreated' => $now,
+                'timemodified' => $now,
+                'createdby' => $userid,
+                'modifiedby' => $userid,
+            ]);
+            $methodid = (int)$DB->insert_record('local_kgen_method', $record);
+            if ($titlekey !== '') {
+                $existingbytitle[$titlekey] = $methodid;
+            }
+            $result['created']++;
         }
-        $count++;
+        if (!empty($zipfiles)) {
+            $result['files'] += local_seminarplaner_store_import_files(
+                $methodid,
+                'material',
+                $userid,
+                $materialfiles,
+                $zipfiles,
+                $existingid > 0
+            );
+        }
     }
     $transaction->allow_commit();
-    return $count;
+    return $result;
 }
 
 /**
