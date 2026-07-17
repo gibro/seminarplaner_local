@@ -105,6 +105,32 @@ class methodset_repository {
     }
 
     /**
+     * Id of the most recently published version of a set.
+     *
+     * currentversion always points at the newest version regardless of status, so it is
+     * not a reliable "what is published" pointer once a further draft has been created.
+     * Everything that feeds published content into activities must use this instead.
+     *
+     * @param int $methodsetid Method set id.
+     * @return int Version id, or 0 if the set has no published version.
+     */
+    public function get_published_versionid(int $methodsetid): int {
+        global $DB;
+
+        $record = $DB->get_record_sql(
+            "SELECT id
+               FROM {local_kgen_methodset_ver}
+              WHERE methodsetid = :methodsetid
+                AND status = :status
+           ORDER BY versionnum DESC",
+            ['methodsetid' => $methodsetid, 'status' => 'published'],
+            IGNORE_MULTIPLE
+        );
+
+        return $record ? (int)$record->id : 0;
+    }
+
+    /**
      * List method sets by scope and optional status.
      *
      * @param int $scopecontextid Scope context id.
