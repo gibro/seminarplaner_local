@@ -494,6 +494,14 @@ if ($action === 'transition' && confirm_sesskey()) {
         if (!$methodset) {
             throw new moodle_exception('invalidparameter');
         }
+        // The action links are baked into the page with the status it had when it was
+        // rendered. If another action (or another tab) has moved the set on since, the
+        // link is stale - that is normal use, not a coding error, so show a friendly
+        // "reload the page" hint instead of letting the workflow throw a coding_exception.
+        $rules = new \local_seminarplaner\local\workflow\workflow_rules();
+        if (!$rules->can_transition((string)$methodset->status, $tostatus)) {
+            throw new moodle_exception('transitionstale', 'local_seminarplaner');
+        }
         $scopecontext = local_seminarplaner_get_set_scope_context($methodset, $syscontext);
         if ($tostatus === 'review') {
             require_capability('local/seminarplaner:submitforreview', $scopecontext);
