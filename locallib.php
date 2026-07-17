@@ -927,14 +927,78 @@ function local_seminarplaner_send_moddata_export(int $methodsetid, int $versioni
 }
 
 /**
+ * Load the material filenames attached to methods.
+ *
+ * @param int[] $methodids Method ids.
+ * @return array<int, string[]> methodid => sorted filenames
+ */
+function local_seminarplaner_method_material_names(array $methodids): array {
+    global $DB;
+
+    $methodids = array_values(array_unique(array_filter(array_map('intval', $methodids))));
+    if (!$methodids) {
+        return [];
+    }
+
+    list($insql, $params) = $DB->get_in_or_equal($methodids, SQL_PARAMS_NAMED);
+    $links = $DB->get_records_select('local_kgen_method_file',
+        "methodid {$insql} AND kind = :kind",
+        $params + ['kind' => 'material']);
+    if (!$links) {
+        return [];
+    }
+
+    $methodsbyitem = [];
+    foreach ($links as $link) {
+        $methodsbyitem[(int)$link->fileitemid][] = (int)$link->methodid;
+    }
+    $itemids = array_values(array_filter(array_keys($methodsbyitem)));
+    if (!$itemids) {
+        return [];
+    }
+
+    list($iteminsql, $itemparams) = $DB->get_in_or_equal($itemids, SQL_PARAMS_NAMED);
+    $records = $DB->get_records_select('files',
+        "itemid {$iteminsql}
+             AND component = :component
+             AND filearea = :filearea
+             AND filename <> :dot
+             AND filesize > 0",
+        $itemparams + [
+            'component' => 'local_seminarplaner',
+            'filearea' => 'method_material',
+            'dot' => '.',
+        ]);
+
+    $out = [];
+    foreach ($records as $record) {
+        $name = trim((string)$record->filename);
+        if ($name === '') {
+            continue;
+        }
+        foreach ($methodsbyitem[(int)$record->itemid] ?? [] as $methodid) {
+            $out[$methodid][] = $name;
+        }
+    }
+    foreach ($out as $methodid => $names) {
+        $names = array_values(array_unique($names));
+        sort($names);
+        $out[$methodid] = $names;
+    }
+    return $out;
+}
+
+/**
  * Build comparable method payload from local_kgen_method row.
  *
  * @param stdClass $row Method row.
+ * @param string[] $materialnames Filenames attached to this method.
  * @return array
  */
-function local_seminarplaner_method_compare_payload(stdClass $row): array {
+function local_seminarplaner_method_compare_payload(stdClass $row, array $materialnames = []): array {
     return [
         'title' => trim((string)($row->title ?? '')),
+        'materialien' => implode(', ', $materialnames),
         'seminarphase' => implode('##', local_seminarplaner_normalize_phases(
             local_seminarplaner_split_multi((string)($row->seminarphase ?? ''))
         )),
@@ -979,13 +1043,20 @@ function local_seminarplaner_diff_itemkey(string $title, string $label, string $
  *     changed: array<int, array<string, mixed>>}
  */
 function local_seminarplaner_compute_review_diff(array $baserows, array $newrows): array {
+    // Attachments live in their own table; without them a submission that only adds a
+    // handout would show up as "no differences".
+    $materialnames = local_seminarplaner_method_material_names(array_map(static function($row) {
+        return (int)($row->id ?? 0);
+    }, array_merge(array_values($baserows), array_values($newrows))));
+
     $basebytitle = [];
     foreach ($baserows as $row) {
         $title = trim((string)($row->title ?? ''));
         if ($title === '') {
             continue;
         }
-        $basebytitle[core_text::strtolower($title)] = local_seminarplaner_method_compare_payload($row);
+        $basebytitle[core_text::strtolower($title)] = local_seminarplaner_method_compare_payload($row,
+            $materialnames[(int)($row->id ?? 0)] ?? []);
     }
 
     $newbytitle = [];
@@ -994,7 +1065,8 @@ function local_seminarplaner_compute_review_diff(array $baserows, array $newrows
         if ($title === '') {
             continue;
         }
-        $newbytitle[core_text::strtolower($title)] = local_seminarplaner_method_compare_payload($row);
+        $newbytitle[core_text::strtolower($title)] = local_seminarplaner_method_compare_payload($row,
+            $materialnames[(int)($row->id ?? 0)] ?? []);
     }
 
     $fieldlabels = [
@@ -1012,6 +1084,7 @@ function local_seminarplaner_compute_review_diff(array $baserows, array $newrows
         'risiken_tipps' => 'Risiken/Tipps',
         'debrief' => 'Debrief/Reflexionsfragen',
         'material_technik' => 'Material/Technik',
+        'materialien' => 'Materialien',
         'tags' => 'Tags',
         'kognitive_dimension' => 'Kognitive Dimension',
         'autor_kontakt' => 'Autor*in / Kontakt',
