@@ -1,5 +1,26 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+
+/**
+ * Unit tests for import upsert.
+ *
+ * @package    local_seminarplaner
+ * @copyright  2026 Guido Brombach <gibro@posteo.de>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -11,7 +32,7 @@ use local_seminarplaner\local\repository\methodset_repository;
 /**
  * Tests for updating an existing method set via import (upsert mode).
  */
-final class local_seminarplaner_import_upsert_test extends advanced_testcase {
+final class import_upsert_test extends advanced_testcase {
     /** @var int Method set id. */
     private $methodsetid;
 
@@ -23,8 +44,13 @@ final class local_seminarplaner_import_upsert_test extends advanced_testcase {
         $this->resetAfterTest(true);
 
         $repo = new methodset_repository();
-        $this->methodsetid = $repo->create_methodset_draft('upsertset', 'Upsert Set', 'desc',
-            (int)context_system::instance()->id, 2);
+        $this->methodsetid = $repo->create_methodset_draft(
+            'upsertset',
+            'Upsert Set',
+            'desc',
+            (int)context_system::instance()->id,
+            2
+        );
         $this->versionid = $repo->create_version($this->methodsetid, 1, 'draft', '{}', 2);
     }
 
@@ -50,7 +76,13 @@ final class local_seminarplaner_import_upsert_test extends advanced_testcase {
      */
     private function import(array $records, array $zipfiles = [], string $mode = 'upsert'): array {
         return local_seminarplaner_import_records_to_set(
-            $this->methodsetid, $this->versionid, 2, $records, $zipfiles, $mode);
+            $this->methodsetid,
+            $this->versionid,
+            2,
+            $records,
+            $zipfiles,
+            $mode
+        );
     }
 
     /**
@@ -78,8 +110,14 @@ final class local_seminarplaner_import_upsert_test extends advanced_testcase {
         $names = [];
         $links = $DB->get_records('local_kgen_method_file', ['methodid' => $methodid, 'kind' => 'material']);
         foreach ($links as $link) {
-            $files = $fs->get_area_files($contextid, 'local_seminarplaner', 'method_material',
-                (int)$link->fileitemid, 'filename ASC', false);
+            $files = $fs->get_area_files(
+                $contextid,
+                'local_seminarplaner',
+                'method_material',
+                (int)$link->fileitemid,
+                'filename ASC',
+                false
+            );
             foreach ($files as $file) {
                 $names[] = (string)$file->get_filename();
             }
@@ -211,8 +249,14 @@ final class local_seminarplaner_import_upsert_test extends advanced_testcase {
         $contextid = (int)context_system::instance()->id;
         $links = $DB->get_records('local_kgen_method_file', ['methodid' => $methodid, 'kind' => 'material']);
         foreach ($links as $link) {
-            $file = $fs->get_file($contextid, 'local_seminarplaner', 'method_material',
-                (int)$link->fileitemid, '/', $filename);
+            $file = $fs->get_file(
+                $contextid,
+                'local_seminarplaner',
+                'method_material',
+                (int)$link->fileitemid,
+                '/',
+                $filename
+            );
             if ($file) {
                 return (string)$file->get_content();
             }

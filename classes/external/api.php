@@ -1,5 +1,26 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+
+/**
+ * Api.
+ *
+ * @package    local_seminarplaner
+ * @copyright  2026 Guido Brombach <gibro@posteo.de>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 
 namespace local_seminarplaner\external;
 
@@ -14,8 +35,6 @@ use core_external\external_value;
 use invalid_parameter_exception;
 use local_seminarplaner\local\repository\methodset_repository;
 use local_seminarplaner\local\service\workflow_service;
-
-defined('MOODLE_INTERNAL') || die();
 
 /**
  * External API for global method set governance.
@@ -65,17 +84,24 @@ class api extends external_api {
             $entries = [];
         }
 
-        $entries = array_values(array_filter($entries, static function($ts) use ($windowstart) {
+        $entries = array_values(array_filter($entries, static function ($ts) use ($windowstart) {
             return is_int($ts) && $ts >= $windowstart;
         }));
         if (count($entries) >= $maxrequests) {
-            throw new invalid_parameter_exception('Zu viele Schreibanfragen in kurzer Zeit. Bitte kurz warten und erneut versuchen.');
+            throw new invalid_parameter_exception(
+                'Zu viele Schreibanfragen in kurzer Zeit. Bitte kurz warten und erneut versuchen.'
+            );
         }
 
         $entries[] = $now;
         $SESSION->local_seminarplaner_ratelimit[$action] = $entries;
     }
 
+    /**
+     * Beschreibt die Parameter für das Anlegen eines Methodenset-Entwurfs.
+     *
+     * @return external_function_parameters Parameterdefinition des Webservice.
+     */
     public static function create_draft_methodset_parameters(): external_function_parameters {
         return new external_function_parameters([
             'shortname' => new external_value(PARAM_ALPHANUMEXT, 'Short unique name'),
@@ -85,8 +111,21 @@ class api extends external_api {
         ]);
     }
 
-    public static function create_draft_methodset(string $shortname, string $displayname, string $description,
-        int $scopecontextid): array {
+    /**
+     * Legt ein neues Methodenset als Entwurf samt erster Version an.
+     *
+     * @param string $shortname Eindeutiger Kurzname des Methodensets.
+     * @param string $displayname Anzeigename des Methodensets.
+     * @param string $description Beschreibungstext des Methodensets.
+     * @param int $scopecontextid Kontext-Id (System oder Kursbereich), in dem das Set gilt.
+     * @return array Array mit den Schlüsseln methodsetid und versionid.
+     */
+    public static function create_draft_methodset(
+        string $shortname,
+        string $displayname,
+        string $description,
+        int $scopecontextid
+    ): array {
         $params = self::validate_parameters(self::create_draft_methodset_parameters(), [
             'shortname' => $shortname,
             'displayname' => $displayname,
@@ -102,13 +141,23 @@ class api extends external_api {
         }
 
         $repo = new methodset_repository();
-        $methodsetid = $repo->create_methodset_draft((string)$params['shortname'], (string)$params['displayname'],
-            (string)$params['description'], (int)$ctx->id, (int)$GLOBALS['USER']->id);
+        $methodsetid = $repo->create_methodset_draft(
+            (string)$params['shortname'],
+            (string)$params['displayname'],
+            (string)$params['description'],
+            (int)$ctx->id,
+            (int)$GLOBALS['USER']->id
+        );
         $versionid = $repo->create_version((int)$methodsetid, 1, 'draft', '{}', (int)$GLOBALS['USER']->id);
 
         return ['methodsetid' => $methodsetid, 'versionid' => $versionid];
     }
 
+    /**
+     * Beschreibt den Rückgabewert für das Anlegen eines Methodenset-Entwurfs.
+     *
+     * @return external_single_structure Rückgabedefinition des Webservice.
+     */
     public static function create_draft_methodset_returns(): external_single_structure {
         return new external_single_structure([
             'methodsetid' => new external_value(PARAM_INT, 'Method set id'),
@@ -116,6 +165,11 @@ class api extends external_api {
         ]);
     }
 
+    /**
+     * Beschreibt die Parameter für den Statuswechsel eines Methodensets.
+     *
+     * @return external_function_parameters Parameterdefinition des Webservice.
+     */
     public static function transition_methodset_parameters(): external_function_parameters {
         return new external_function_parameters([
             'methodsetid' => new external_value(PARAM_INT, 'Method set id'),
@@ -125,6 +179,15 @@ class api extends external_api {
         ]);
     }
 
+    /**
+     * Führt einen Statuswechsel für ein Methodenset durch.
+     *
+     * @param int $methodsetid Id des Methodensets.
+     * @param int $versionid Id der betroffenen Version, 0 für keine bestimmte Version.
+     * @param string $tostatus Zielstatus (draft, review, published oder archived).
+     * @param string $comment Optionaler Kommentar zum Statuswechsel.
+     * @return array Array mit dem Schlüssel success.
+     */
     public static function transition_methodset(int $methodsetid, int $versionid, string $tostatus, string $comment = ''): array {
         $params = self::validate_parameters(self::transition_methodset_parameters(), [
             'methodsetid' => $methodsetid,
@@ -164,18 +227,33 @@ class api extends external_api {
         }
 
         $service = new workflow_service();
-        $service->transition((int)$params['methodsetid'], $params['versionid'] ? (int)$params['versionid'] : null,
-            $target, (int)$GLOBALS['USER']->id, (string)$params['comment']);
+        $service->transition(
+            (int)$params['methodsetid'],
+            $params['versionid'] ? (int)$params['versionid'] : null,
+            $target,
+            (int)$GLOBALS['USER']->id,
+            (string)$params['comment']
+        );
 
         return ['success' => true];
     }
 
+    /**
+     * Beschreibt den Rückgabewert für den Statuswechsel eines Methodensets.
+     *
+     * @return external_single_structure Rückgabedefinition des Webservice.
+     */
     public static function transition_methodset_returns(): external_single_structure {
         return new external_single_structure([
             'success' => new external_value(PARAM_BOOL, 'Transition status'),
         ]);
     }
 
+    /**
+     * Beschreibt die Parameter für das Auflisten von Methodensets.
+     *
+     * @return external_function_parameters Parameterdefinition des Webservice.
+     */
     public static function list_methodsets_parameters(): external_function_parameters {
         return new external_function_parameters([
             'scopecontextid' => new external_value(PARAM_INT, 'System/category context id'),
@@ -183,6 +261,13 @@ class api extends external_api {
         ]);
     }
 
+    /**
+     * Listet die Methodensets eines Kontexts auf, optional nach Status gefiltert.
+     *
+     * @param int $scopecontextid Kontext-Id (System oder Kursbereich).
+     * @param string $status Optionaler Statusfilter, leer für alle Status.
+     * @return array Array mit dem Schlüssel methodsets.
+     */
     public static function list_methodsets(int $scopecontextid, string $status = ''): array {
         $params = self::validate_parameters(self::list_methodsets_parameters(), [
             'scopecontextid' => $scopecontextid,
@@ -210,6 +295,11 @@ class api extends external_api {
         return ['methodsets' => $out];
     }
 
+    /**
+     * Beschreibt den Rückgabewert für das Auflisten von Methodensets.
+     *
+     * @return external_single_structure Rückgabedefinition des Webservice.
+     */
     public static function list_methodsets_returns(): external_single_structure {
         return new external_single_structure([
             'methodsets' => new external_multiple_structure(new external_single_structure([

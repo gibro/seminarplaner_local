@@ -1,5 +1,26 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+
+/**
+ * Unit tests for review diff materialien.
+ *
+ * @package    local_seminarplaner
+ * @copyright  2026 Guido Brombach <gibro@posteo.de>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -12,7 +33,7 @@ require_once($CFG->dirroot . '/local/seminarplaner/locallib.php');
  * A submission that only adds a handout used to be reported as "no differences",
  * because the diff read local_kgen_method only and attachments live in their own table.
  */
-final class local_seminarplaner_review_diff_materialien_test extends advanced_testcase {
+final class review_diff_materialien_test extends advanced_testcase {
     /** @var int Method set id. */
     private int $methodsetid = 0;
 

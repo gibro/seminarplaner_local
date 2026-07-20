@@ -1,5 +1,26 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+
+/**
+ * Internal library functions.
+ *
+ * @package    local_seminarplaner
+ * @copyright  2026 Guido Brombach <gibro@posteo.de>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 
 /** @var int Max bytes for one import upload payload (CSV, ZIP or JSON). */
 const LOCAL_SEMINARPLANER_IMPORT_MAX_BYTES = 20971520; // 20 MB.
@@ -280,21 +301,39 @@ function local_seminarplaner_parse_json_methods(string $jsontext): array {
             'Titel' => $title,
             'Seminarphase' => local_seminarplaner_json_row_first_multi($item, ['seminarphase', 'Seminarphase']),
             'Zeitbedarf' => local_seminarplaner_json_row_first_scalar($item, ['zeitbedarf', 'Zeitbedarf']),
-            'Gruppengröße' => local_seminarplaner_json_row_first_scalar($item, ['gruppengroesse', 'Gruppengroesse', 'Gruppengröße']),
+            'Gruppengröße' => local_seminarplaner_json_row_first_scalar(
+                $item,
+                ['gruppengroesse', 'Gruppengroesse', 'Gruppengröße']
+            ),
             'Kurzbeschreibung' => local_seminarplaner_json_row_first_scalar($item, ['kurzbeschreibung', 'Kurzbeschreibung']),
-            'Autor*in / Kontakt' => local_seminarplaner_json_row_first_scalar($item, ['autor', 'autor_kontakt', 'Autor*in / Kontakt']),
-            'Lernziele (Ich-kann ...)' => local_seminarplaner_json_row_first_scalar($item, ['lernziele', 'Lernziele (Ich-kann ...)']),
+            'Autor*in / Kontakt' => local_seminarplaner_json_row_first_scalar(
+                $item,
+                ['autor', 'autor_kontakt', 'Autor*in / Kontakt']
+            ),
+            'Lernziele (Ich-kann ...)' => local_seminarplaner_json_row_first_scalar(
+                $item,
+                ['lernziele', 'Lernziele (Ich-kann ...)']
+            ),
             'Komplexitätsgrad' => local_seminarplaner_json_row_first_scalar($item, ['komplexitaet', 'Komplexitätsgrad']),
             'Vorbereitung nötig' => local_seminarplaner_json_row_first_scalar($item, ['vorbereitung', 'Vorbereitung nötig']),
-            'Raumanforderungen' => local_seminarplaner_json_row_first_multi($item, ['raum', 'raumanforderungen', 'Raumanforderungen']),
+            'Raumanforderungen' => local_seminarplaner_json_row_first_multi(
+                $item,
+                ['raum', 'raumanforderungen', 'Raumanforderungen']
+            ),
             'Sozialform' => local_seminarplaner_json_row_first_multi($item, ['sozialform', 'Sozialform']),
             'Risiken/Tipps' => local_seminarplaner_json_row_first_scalar($item, ['risiken', 'risiken_tipps', 'Risiken/Tipps']),
             'Debrief/Reflexionsfragen' => local_seminarplaner_json_row_first_scalar($item, ['debrief', 'Debrief/Reflexionsfragen']),
             'Materialien' => local_seminarplaner_json_row_first_multi($item, ['materialien', 'Materialien']),
-            'Material/Technik' => local_seminarplaner_json_row_first_scalar($item, ['materialtechnik', 'material_technik', 'Material/Technik']),
+            'Material/Technik' => local_seminarplaner_json_row_first_scalar(
+                $item,
+                ['materialtechnik', 'material_technik', 'Material/Technik']
+            ),
             'Ablauf' => local_seminarplaner_json_row_first_scalar($item, ['ablauf', 'Ablauf']),
             'Tags / Schlüsselworte' => local_seminarplaner_json_row_first_scalar($item, ['tags', 'Tags / Schlüsselworte']),
-            'Kognitive Dimension' => local_seminarplaner_json_row_first_multi($item, ['kognitive', 'kognitive_dimension', 'Kognitive Dimension']),
+            'Kognitive Dimension' => local_seminarplaner_json_row_first_multi(
+                $item,
+                ['kognitive', 'kognitive_dimension', 'Kognitive Dimension']
+            ),
         ];
         if (count($rows) > LOCAL_SEMINARPLANER_IMPORT_MAX_ROWS) {
             throw new moodle_exception('invalidparameter');
@@ -327,14 +366,23 @@ function local_seminarplaner_map_legacy_row(array $row): ?array {
         'lernziele' => local_seminarplaner_row_first($row, ['Lernziele (Ich-kann ...)', 'lernziele']),
         'komplexitaetsgrad' => local_seminarplaner_row_first($row, ['Komplexitätsgrad', 'Komplexitaetsgrad', 'komplexitaet']),
         'vorbereitung' => local_seminarplaner_row_first($row, ['Vorbereitung nötig', 'Vorbereitung noetig', 'vorbereitung']),
-        'raumanforderungen' => implode('##', local_seminarplaner_split_multi(local_seminarplaner_row_first($row, ['Raumanforderungen', 'raumanforderungen']))),
-        'sozialform' => implode('##', local_seminarplaner_split_multi(local_seminarplaner_row_first($row, ['Sozialform', 'sozialform']))),
+        'raumanforderungen' => implode('##', local_seminarplaner_split_multi(
+            local_seminarplaner_row_first($row, ['Raumanforderungen', 'raumanforderungen'])
+        )),
+        'sozialform' => implode('##', local_seminarplaner_split_multi(
+            local_seminarplaner_row_first($row, ['Sozialform', 'sozialform'])
+        )),
         'risiken_tipps' => local_seminarplaner_row_first($row, ['Risiken/Tipps', 'risiken_tipps', 'risiken']),
         'debrief' => local_seminarplaner_row_first($row, ['Debrief/Reflexionsfragen', 'debrief']),
         'material_technik' => local_seminarplaner_row_first($row, ['Material/Technik', 'material_technik', 'materialtechnik']),
         'tags' => local_seminarplaner_row_first($row, ['Tags / Schlüsselworte', 'Tags / Schluesselworte', 'tags', 'Tags']),
-        'kognitive_dimension' => implode('##', local_seminarplaner_split_multi(local_seminarplaner_row_first($row, ['Kognitive Dimension', 'kognitive_dimension', 'kognitive']))),
-        'autor_kontakt' => local_seminarplaner_row_first($row, ['Autor*in / Kontakt', 'Autor/in / Kontakt', 'autor_kontakt', 'autor']),
+        'kognitive_dimension' => implode('##', local_seminarplaner_split_multi(
+            local_seminarplaner_row_first($row, ['Kognitive Dimension', 'kognitive_dimension', 'kognitive'])
+        )),
+        'autor_kontakt' => local_seminarplaner_row_first(
+            $row,
+            ['Autor*in / Kontakt', 'Autor/in / Kontakt', 'autor_kontakt', 'autor']
+        ),
         '__materialfiles' => local_seminarplaner_split_multi(local_seminarplaner_row_first($row, ['Materialien', 'materialien'])),
         '__h5pfiles' => local_seminarplaner_parse_h5p_filenames(local_seminarplaner_row_first($row, ['H5P-Inhalt', 'h5p'])),
     ];
@@ -370,7 +418,7 @@ function local_seminarplaner_parse_csv(string $csvtext): array {
         fclose($fp);
         return [];
     }
-    $headers = array_map(static function($h) {
+    $headers = array_map(static function ($h) {
         return trim((string)$h);
     }, $headers);
 
@@ -556,8 +604,14 @@ function local_seminarplaner_next_file_itemid(string $filearea): int {
  * @param bool $reuseexisting Add to the method's existing file area instead of starting a new one.
  * @return int Number of files stored.
  */
-function local_seminarplaner_store_import_files(int $methodid, string $kind, int $userid, array $filenames,
-    array $zipfiles, bool $reuseexisting = false): int {
+function local_seminarplaner_store_import_files(
+    int $methodid,
+    string $kind,
+    int $userid,
+    array $filenames,
+    array $zipfiles,
+    bool $reuseexisting = false
+): int {
     global $DB;
 
     $filenames = array_values(array_unique(array_filter(array_map('trim', $filenames))));
@@ -573,8 +627,14 @@ function local_seminarplaner_store_import_files(int $methodid, string $kind, int
     $itemid = 0;
     $haslink = false;
     if ($reuseexisting) {
-        $links = $DB->get_records('local_kgen_method_file', ['methodid' => $methodid, 'kind' => $kind],
-            'id ASC', 'id, fileitemid', 0, 1);
+        $links = $DB->get_records(
+            'local_kgen_method_file',
+            ['methodid' => $methodid, 'kind' => $kind],
+            'id ASC',
+            'id, fileitemid',
+            0,
+            1
+        );
         $link = reset($links);
         if ($link) {
             $itemid = (int)$link->fileitemid;
@@ -809,13 +869,13 @@ function local_seminarplaner_send_moddata_export(int $methodsetid, int $versioni
         'Tags / Schlüsselworte', 'Kognitive Dimension', 'Tags',
     ];
 
-    $methodids = array_map(static function($row) {
+    $methodids = array_map(static function ($row) {
         return (int)$row->id;
     }, array_values($rows));
     $filesbymethod = [];
     $filesforzip = [];
     if ($methodids) {
-        list($insql, $params) = $DB->get_in_or_equal($methodids, SQL_PARAMS_NAMED);
+        [$insql, $params] = $DB->get_in_or_equal($methodids, SQL_PARAMS_NAMED);
         $links = $DB->get_records_select('local_kgen_method_file', "methodid {$insql}", $params, 'id ASC');
         if ($links) {
             $itemids = [];
@@ -825,8 +885,9 @@ function local_seminarplaner_send_moddata_export(int $methodsetid, int $versioni
             $itemids = array_values(array_unique(array_filter($itemids)));
             $storedfiles = [];
             if ($itemids) {
-                list($iteminsql, $itemparams) = $DB->get_in_or_equal($itemids, SQL_PARAMS_NAMED);
-                $storedfiles = $DB->get_records_select('files',
+                [$iteminsql, $itemparams] = $DB->get_in_or_equal($itemids, SQL_PARAMS_NAMED);
+                $storedfiles = $DB->get_records_select(
+                    'files',
                     "itemid {$iteminsql}
                          AND component = :component
                          AND filearea = :materialarea
@@ -836,7 +897,8 @@ function local_seminarplaner_send_moddata_export(int $methodsetid, int $versioni
                         'component' => 'local_seminarplaner',
                         'materialarea' => 'method_material',
                         'dot' => '.',
-                    ]);
+                    ]
+                );
             }
             $storedbyitem = [];
             foreach ($storedfiles as $stored) {
@@ -870,7 +932,7 @@ function local_seminarplaner_send_moddata_export(int $methodsetid, int $versioni
     $lines[] = implode(',', array_map('local_seminarplaner_csv_cell', $headers));
     foreach ($rows as $row) {
         $csvrow = local_seminarplaner_export_row_from_method($row, $filesbymethod);
-        $lines[] = implode(',', array_map(static function($value) {
+        $lines[] = implode(',', array_map(static function ($value) {
             return local_seminarplaner_csv_cell((string)$value);
         }, $csvrow));
     }
@@ -940,10 +1002,12 @@ function local_seminarplaner_method_material_names(array $methodids): array {
         return [];
     }
 
-    list($insql, $params) = $DB->get_in_or_equal($methodids, SQL_PARAMS_NAMED);
-    $links = $DB->get_records_select('local_kgen_method_file',
+    [$insql, $params] = $DB->get_in_or_equal($methodids, SQL_PARAMS_NAMED);
+    $links = $DB->get_records_select(
+        'local_kgen_method_file',
         "methodid {$insql} AND kind = :kind",
-        $params + ['kind' => 'material']);
+        $params + ['kind' => 'material']
+    );
     if (!$links) {
         return [];
     }
@@ -957,8 +1021,9 @@ function local_seminarplaner_method_material_names(array $methodids): array {
         return [];
     }
 
-    list($iteminsql, $itemparams) = $DB->get_in_or_equal($itemids, SQL_PARAMS_NAMED);
-    $records = $DB->get_records_select('files',
+    [$iteminsql, $itemparams] = $DB->get_in_or_equal($itemids, SQL_PARAMS_NAMED);
+    $records = $DB->get_records_select(
+        'files',
         "itemid {$iteminsql}
              AND component = :component
              AND filearea = :filearea
@@ -968,7 +1033,8 @@ function local_seminarplaner_method_material_names(array $methodids): array {
             'component' => 'local_seminarplaner',
             'filearea' => 'method_material',
             'dot' => '.',
-        ]);
+        ]
+    );
 
     $out = [];
     foreach ($records as $record) {
@@ -1045,7 +1111,7 @@ function local_seminarplaner_diff_itemkey(string $title, string $label, string $
 function local_seminarplaner_compute_review_diff(array $baserows, array $newrows): array {
     // Attachments live in their own table; without them a submission that only adds a
     // handout would show up as "no differences".
-    $materialnames = local_seminarplaner_method_material_names(array_map(static function($row) {
+    $materialnames = local_seminarplaner_method_material_names(array_map(static function ($row) {
         return (int)($row->id ?? 0);
     }, array_merge(array_values($baserows), array_values($newrows))));
 
@@ -1055,8 +1121,10 @@ function local_seminarplaner_compute_review_diff(array $baserows, array $newrows
         if ($title === '') {
             continue;
         }
-        $basebytitle[core_text::strtolower($title)] = local_seminarplaner_method_compare_payload($row,
-            $materialnames[(int)($row->id ?? 0)] ?? []);
+        $basebytitle[core_text::strtolower($title)] = local_seminarplaner_method_compare_payload(
+            $row,
+            $materialnames[(int)($row->id ?? 0)] ?? []
+        );
     }
 
     $newbytitle = [];
@@ -1065,8 +1133,10 @@ function local_seminarplaner_compute_review_diff(array $baserows, array $newrows
         if ($title === '') {
             continue;
         }
-        $newbytitle[core_text::strtolower($title)] = local_seminarplaner_method_compare_payload($row,
-            $materialnames[(int)($row->id ?? 0)] ?? []);
+        $newbytitle[core_text::strtolower($title)] = local_seminarplaner_method_compare_payload(
+            $row,
+            $materialnames[(int)($row->id ?? 0)] ?? []
+        );
     }
 
     $fieldlabels = [
@@ -1166,13 +1236,13 @@ function local_seminarplaner_compute_review_diff(array $baserows, array $newrows
         ];
     }
 
-    usort($result['added'], static function($a, $b) {
+    usort($result['added'], static function ($a, $b) {
         return strcmp((string)$a['title'], (string)$b['title']);
     });
-    usort($result['changed'], static function($a, $b) {
+    usort($result['changed'], static function ($a, $b) {
         return strcmp((string)$a['title'], (string)$b['title']);
     });
-    usort($result['removed'], static function($a, $b) {
+    usort($result['removed'], static function ($a, $b) {
         return strcmp((string)$a['title'], (string)$b['title']);
     });
 
@@ -1192,7 +1262,8 @@ function local_seminarplaner_render_diff_method(array $item, array $decisions = 
     $out .= html_writer::tag('div', s((string)($item['title'] ?? '')), ['class' => 'kg-diff-method-title']);
     $out .= html_writer::start_tag('table', ['class' => 'kg-diff-table']);
     $out .= html_writer::start_tag('thead');
-    $out .= html_writer::tag('tr',
+    $out .= html_writer::tag(
+        'tr',
         html_writer::tag('th', 'Feld') .
         html_writer::tag('th', 'Vorher') .
         html_writer::tag('th', 'Nachher') .
@@ -1220,11 +1291,24 @@ function local_seminarplaner_render_diff_method(array $item, array $decisions = 
         } else {
             $decisioncontent = s((string)get_string('reviewdecision_' . $selecteddecision, 'local_seminarplaner'));
         }
-        $out .= html_writer::tag('tr',
+        $out .= html_writer::tag(
+            'tr',
             html_writer::tag('td', $label) .
-            html_writer::tag('td', html_writer::tag('span', $beforetext, ['class' => 'kg-diff-value kg-diff-before kg-diff-' . $status])) .
-            html_writer::tag('td', html_writer::tag('span', $aftertext, ['class' => 'kg-diff-value kg-diff-after kg-diff-' . $status])) .
-            html_writer::tag('td', html_writer::tag('span', strtoupper($status), ['class' => 'kg-diff-badge kg-diff-badge-' . $status])) .
+            html_writer::tag('td', html_writer::tag(
+                'span',
+                $beforetext,
+                ['class' => 'kg-diff-value kg-diff-before kg-diff-' . $status]
+            )) .
+            html_writer::tag('td', html_writer::tag(
+                'span',
+                $aftertext,
+                ['class' => 'kg-diff-value kg-diff-after kg-diff-' . $status]
+            )) .
+            html_writer::tag('td', html_writer::tag(
+                'span',
+                strtoupper($status),
+                ['class' => 'kg-diff-badge kg-diff-badge-' . $status]
+            )) .
             html_writer::tag('td', $decisioncontent)
         );
     }

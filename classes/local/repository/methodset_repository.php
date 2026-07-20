@@ -1,9 +1,28 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+
+/**
+ * Methodset repository.
+ *
+ * @package    local_seminarplaner
+ * @copyright  2026 Guido Brombach <gibro@posteo.de>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 
 namespace local_seminarplaner\local\repository;
-
-defined('MOODLE_INTERNAL') || die();
 
 /**
  * Repository for global method sets and versions.
@@ -20,8 +39,14 @@ class methodset_repository {
      * @param string $concepttype Object kind (D32): 'sammlung' or 'seminarkonzept'.
      * @return int
      */
-    public function create_methodset_draft(string $shortname, string $displayname, string $description, int $scopecontextid,
-        int $actorid, string $concepttype = 'sammlung'): int {
+    public function create_methodset_draft(
+        string $shortname,
+        string $displayname,
+        string $description,
+        int $scopecontextid,
+        int $actorid,
+        string $concepttype = 'sammlung'
+    ): int {
         global $DB;
 
         $now = time();
@@ -253,7 +278,7 @@ class methodset_repository {
             'methodsetid' => $methodsetid,
         ]);
         if (!empty($methodids)) {
-            list($insql, $params) = $DB->get_in_or_equal($methodids, SQL_PARAMS_NAMED);
+            [$insql, $params] = $DB->get_in_or_equal($methodids, SQL_PARAMS_NAMED);
             $DB->delete_records_select('local_kgen_method_file', "methodid {$insql}", $params);
         }
 

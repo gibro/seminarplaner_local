@@ -1,5 +1,26 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+
+/**
+ * Reviewrequests.
+ *
+ * @package    local_seminarplaner
+ * @copyright  2026 Guido Brombach <gibro@posteo.de>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 
 require_once(__DIR__ . '/bootstrap.php');
 require_once(__DIR__ . '/locallib.php');
@@ -47,8 +68,12 @@ function local_seminarplaner_get_reviewer_candidates(context $scopecontext): arr
     global $DB;
 
     $fields = 'u.id,u.firstname,u.lastname,u.firstnamephonetic,u.lastnamephonetic,u.middlename,u.alternatename,u.email';
-    $candidates = get_users_by_capability($scopecontext, 'local/seminarplaner:reviewset', $fields,
-        'u.lastname ASC, u.firstname ASC');
+    $candidates = get_users_by_capability(
+        $scopecontext,
+        'local/seminarplaner:reviewset',
+        $fields,
+        'u.lastname ASC, u.firstname ASC'
+    );
     $byid = [];
     foreach ($candidates as $candidate) {
         $byid[(int)$candidate->id] = $candidate;
@@ -80,7 +105,7 @@ function local_seminarplaner_get_reviewer_candidates(context $scopecontext): arr
         }
     }
 
-    uasort($byid, static function(stdClass $a, stdClass $b): int {
+    uasort($byid, static function (stdClass $a, stdClass $b): int {
         $alast = core_text::strtolower((string)($a->lastname ?? ''));
         $blast = core_text::strtolower((string)($b->lastname ?? ''));
         if ($alast !== $blast) {
@@ -140,19 +165,31 @@ function local_seminarplaner_user_is_assigned_reviewer(
 function local_seminarplaner_render_review_diff_sections(array $diff, array $decisions, bool $allowdecisions): string {
     $content = html_writer::start_div('kg-review-diff');
     if (!empty($diff['added'])) {
-        $content .= html_writer::tag('div', get_string('reviewdiffnew', 'local_seminarplaner'), ['class' => 'kg-review-section-title']);
+        $content .= html_writer::tag(
+            'div',
+            get_string('reviewdiffnew', 'local_seminarplaner'),
+            ['class' => 'kg-review-section-title']
+        );
         foreach ($diff['added'] as $item) {
             $content .= local_seminarplaner_render_diff_method($item, $decisions, $allowdecisions);
         }
     }
     if (!empty($diff['changed'])) {
-        $content .= html_writer::tag('div', get_string('reviewdiffchanged', 'local_seminarplaner'), ['class' => 'kg-review-section-title']);
+        $content .= html_writer::tag(
+            'div',
+            get_string('reviewdiffchanged', 'local_seminarplaner'),
+            ['class' => 'kg-review-section-title']
+        );
         foreach ($diff['changed'] as $item) {
             $content .= local_seminarplaner_render_diff_method($item, $decisions, $allowdecisions);
         }
     }
     if (!empty($diff['removed'])) {
-        $content .= html_writer::tag('div', get_string('reviewdiffremoved', 'local_seminarplaner'), ['class' => 'kg-review-section-title']);
+        $content .= html_writer::tag(
+            'div',
+            get_string('reviewdiffremoved', 'local_seminarplaner'),
+            ['class' => 'kg-review-section-title']
+        );
         foreach ($diff['removed'] as $item) {
             $content .= local_seminarplaner_render_diff_method($item, $decisions, $allowdecisions);
         }
@@ -236,9 +273,17 @@ function local_seminarplaner_build_reviewdiff_payload(
             'class' => 'kg-modal-form',
         ]);
         $modalcontent .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
-        $modalcontent .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'savereviewdecisions']);
+        $modalcontent .= html_writer::empty_tag('input', [
+            'type' => 'hidden',
+            'name' => 'action',
+            'value' => 'savereviewdecisions',
+        ]);
         $modalcontent .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'methodsetid', 'value' => (int)$set->id]);
-        $modalcontent .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'versionid', 'value' => (int)$set->currentversion]);
+        $modalcontent .= html_writer::empty_tag('input', [
+            'type' => 'hidden',
+            'name' => 'versionid',
+            'value' => (int)$set->currentversion,
+        ]);
         $modalcontent .= html_writer::start_div('kg-review-diff-tools');
         $modalcontent .= html_writer::tag('button', get_string('reviewacceptallchanges', 'local_seminarplaner'), [
             'type' => 'button',
@@ -246,8 +291,10 @@ function local_seminarplaner_build_reviewdiff_payload(
             'data-kg-accept-all-decisions' => '1',
         ]);
         $modalcontent .= html_writer::end_div();
-        $modalcontent .= html_writer::div(local_seminarplaner_render_review_diff_sections($diff, $decisions, true),
-            'kg-modal-body');
+        $modalcontent .= html_writer::div(
+            local_seminarplaner_render_review_diff_sections($diff, $decisions, true),
+            'kg-modal-body'
+        );
         $modalcontent .= html_writer::start_div('kg-modal-actions');
         $modalcontent .= html_writer::tag('button', get_string('savereviewdecisions', 'local_seminarplaner'), [
             'type' => 'submit',
@@ -261,8 +308,10 @@ function local_seminarplaner_build_reviewdiff_payload(
         $modalcontent .= html_writer::end_div();
         $modalcontent .= html_writer::end_tag('form');
     } else {
-        $modalcontent = html_writer::div(local_seminarplaner_render_review_diff_sections($diff, $decisions, false),
-            'kg-modal-body');
+        $modalcontent = html_writer::div(
+            local_seminarplaner_render_review_diff_sections($diff, $decisions, false),
+            'kg-modal-body'
+        );
         $modalcontent .= html_writer::start_div('kg-modal-actions');
         $modalcontent .= html_writer::tag('button', get_string('closebuttontitle', 'moodle'), [
             'type' => 'button',
@@ -275,9 +324,11 @@ function local_seminarplaner_build_reviewdiff_payload(
     $modal = html_writer::start_div('kg-modal kg-hidden', ['id' => $modalid, 'data-kg-modal' => '1']);
     $modal .= html_writer::start_div('kg-modal-content');
     $modal .= html_writer::start_div('kg-modal-header');
-    $modal .= html_writer::tag('div',
+    $modal .= html_writer::tag(
+        'div',
         get_string('reviewdiffpopuptitle', 'local_seminarplaner', format_string($set->displayname)),
-        ['class' => 'kg-modal-title']);
+        ['class' => 'kg-modal-title']
+    );
     $modal .= html_writer::tag('button', '×', [
         'type' => 'button',
         'class' => 'kg-modal-close',
@@ -654,7 +705,8 @@ if ($action === 'savereviewdecisions' && confirm_sesskey()) {
         foreach ($allreviewerdecisions as $record) {
             $key = (string)$record->itemkey;
             $info = $itemmap[$key] ?? ['title' => $key, 'label' => '', 'status' => 'unknown'];
-            $line = trim((string)$info['title']) . ' - ' . trim((string)$info['label']) . ' [' . trim((string)$info['status']) . ']';
+            $line = trim((string)$info['title']) . ' - ' . trim((string)$info['label'])
+                . ' [' . trim((string)$info['status']) . ']';
             if ((string)$record->decision === 'accepted') {
                 $accepted[] = $line;
             } else if ((string)$record->decision === 'rejected') {
@@ -674,8 +726,11 @@ if ($action === 'savereviewdecisions' && confirm_sesskey()) {
         );
         $submitterid = (int)($submitevent->actorid ?? 0);
         if ($submitterid > 0) {
-            $submitter = $DB->get_record('user', ['id' => $submitterid, 'deleted' => 0, 'suspended' => 0],
-                'id,username,email,firstname,lastname,firstnamephonetic,lastnamephonetic,middlename,alternatename,mailformat');
+            $submitter = $DB->get_record(
+                'user',
+                ['id' => $submitterid, 'deleted' => 0, 'suspended' => 0],
+                'id,username,email,firstname,lastname,firstnamephonetic,lastnamephonetic,middlename,alternatename,mailformat'
+            );
             if ($submitter) {
                 $setname = format_string((string)$set->displayname);
                 $a = (object)[
@@ -770,8 +825,10 @@ echo html_writer::tag('style', '
 .kg-reviewdiff-link{font-weight:600}
 .table-responsive{position:relative;z-index:1;overflow-x:auto;overflow-y:visible}
 .kg-tag-dropdown{position:relative;z-index:3000}
-.kg-tag-dropdown-toggle{width:100%;min-height:36px;padding:8px;border:1px solid #d1d5db;border-radius:8px;background:#fff;text-align:left;cursor:pointer}
-.kg-tag-dropdown-panel{position:absolute;z-index:3100;left:0;right:0;max-height:220px;overflow:auto;background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:8px;box-shadow:0 6px 20px rgba(0,0,0,.12)}
+.kg-tag-dropdown-toggle{width:100%;min-height:36px;padding:8px;border:1px solid #d1d5db;border-radius:8px;
+background:#fff;text-align:left;cursor:pointer}
+.kg-tag-dropdown-panel{position:absolute;z-index:3100;left:0;right:0;max-height:220px;overflow:auto;background:#fff;
+border:1px solid #d1d5db;border-radius:8px;padding:8px;box-shadow:0 6px 20px rgba(0,0,0,.12)}
 .kg-tag-option{display:flex;align-items:center;gap:8px;padding:4px 2px}
 .kg-hidden{display:none}
 .kg-review-diff{display:flex;flex-direction:column;gap:10px}
@@ -791,8 +848,10 @@ echo html_writer::tag('style', '
 .kg-diff-badge-replaced{background:#fef3c7;color:#b45309}
 .kg-diff-decision{min-width:130px}
 .kg-review-diff-tools{display:flex;justify-content:flex-end;margin-bottom:8px;flex-shrink:0}
-.kg-modal{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding:36px 16px}
-.kg-modal-content{background:#fff;border-radius:12px;box-shadow:0 20px 48px rgba(0,0,0,.25);width:min(1200px,96vw);max-height:88vh;overflow:hidden;padding:16px;display:flex;flex-direction:column}
+.kg-modal{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;
+justify-content:center;padding:36px 16px}
+.kg-modal-content{background:#fff;border-radius:12px;box-shadow:0 20px 48px rgba(0,0,0,.25);width:min(1200px,96vw);
+max-height:88vh;overflow:hidden;padding:16px;display:flex;flex-direction:column}
 .kg-modal-form{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
 .kg-modal-body{flex:1 1 auto;min-height:0;overflow:auto;border:1px solid #d1d5db;border-radius:8px;padding:10px;background:#f9fafb}
 .kg-modal-header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-shrink:0}
@@ -872,7 +931,126 @@ if ($managerview) {
 
 echo $allmodals;
 
-echo html_writer::script("\n(function() {\n    var roots = document.querySelectorAll('[data-kg-reviewer-dropdown]');\n    var closeAll = function(except) {\n        roots.forEach(function(root) {\n            var panel = root.querySelector('[data-kg-reviewer-panel]');\n            if (!panel) {\n                return;\n            }\n            if (except && root === except) {\n                return;\n            }\n            panel.classList.add('kg-hidden');\n        });\n    };\n    var updateLabel = function(root) {\n        var toggle = root.querySelector('[data-kg-reviewer-toggle]');\n        var checks = root.querySelectorAll('[data-kg-reviewer-checkbox]');\n        if (!toggle || !checks) {\n            return;\n        }\n        var count = 0;\n        checks.forEach(function(chk) {\n            if (chk.checked) {\n                count++;\n            }\n        });\n        toggle.textContent = count ? 'Konzeptverantwortliche (' + count + ')' : 'Konzeptverantwortliche wählen';\n    };\n\n    roots.forEach(function(root) {\n        var toggle = root.querySelector('[data-kg-reviewer-toggle]');\n        var panel = root.querySelector('[data-kg-reviewer-panel]');\n        if (!toggle || !panel) {\n            return;\n        }\n        updateLabel(root);\n        toggle.addEventListener('click', function() {\n            var ishidden = panel.classList.contains('kg-hidden');\n            closeAll(root);\n            panel.classList.toggle('kg-hidden', !ishidden);\n        });\n        root.addEventListener('change', function(event) {\n            var target = event.target;\n            if (!target || target.getAttribute('data-kg-reviewer-checkbox') !== '1') {\n                return;\n            }\n            updateLabel(root);\n        });\n    });\n    document.addEventListener('click', function(event) {\n        var target = event.target;\n        var inside = false;\n        roots.forEach(function(root) {\n            if (root.contains(target)) {\n                inside = true;\n            }\n        });\n        if (!inside) {\n            closeAll(null);\n        }\n    });\n\n    var openers = document.querySelectorAll('[data-kg-open-modal]');\n    var closeModalById = function(id) {\n        if (!id) {\n            return;\n        }\n        var modal = document.getElementById(id);\n        if (!modal) {\n            return;\n        }\n        modal.classList.add('kg-hidden');\n        document.body.style.overflow = '';\n    };\n    openers.forEach(function(opener) {\n        opener.addEventListener('click', function(event) {\n            event.preventDefault();\n            var id = opener.getAttribute('data-kg-open-modal');\n            if (!id) {\n                return;\n            }\n            var modal = document.getElementById(id);\n            if (!modal) {\n                return;\n            }\n            modal.classList.remove('kg-hidden');\n            document.body.style.overflow = 'hidden';\n        });\n    });\n    document.querySelectorAll('[data-kg-close-modal]').forEach(function(btn) {\n        btn.addEventListener('click', function() {\n            closeModalById(btn.getAttribute('data-kg-close-modal'));\n        });\n    });\n    document.querySelectorAll('[data-kg-modal]').forEach(function(modal) {\n        modal.addEventListener('click', function(event) {\n            if (event.target === modal) {\n                closeModalById(modal.id);\n            }\n        });\n    });\n})();\n");
-echo html_writer::script("\n(function() {\n    document.querySelectorAll('[data-kg-accept-all-decisions]').forEach(function(btn) {\n        btn.addEventListener('click', function() {\n            var form = btn.closest('form');\n            if (!form) {\n                return;\n            }\n            form.querySelectorAll('select.kg-diff-decision').forEach(function(select) {\n                select.value = 'accepted';\n            });\n        });\n    });\n})();\n");
+echo html_writer::script(
+    "\n"
+    . "(function() {\n"
+    . "    var roots = document.querySelectorAll('[data-kg-reviewer-dropdown]');\n"
+    . "    var closeAll = function(except) {\n"
+    . "        roots.forEach(function(root) {\n"
+    . "            var panel = root.querySelector('[data-kg-reviewer-panel]');\n"
+    . "            if (!panel) {\n"
+    . "                return;\n"
+    . "            }\n"
+    . "            if (except && root === except) {\n"
+    . "                return;\n"
+    . "            }\n"
+    . "            panel.classList.add('kg-hidden');\n"
+    . "        });\n"
+    . "    };\n"
+    . "    var updateLabel = function(root) {\n"
+    . "        var toggle = root.querySelector('[data-kg-reviewer-toggle]');\n"
+    . "        var checks = root.querySelectorAll('[data-kg-reviewer-checkbox]');\n"
+    . "        if (!toggle || !checks) {\n"
+    . "            return;\n"
+    . "        }\n"
+    . "        var count = 0;\n"
+    . "        checks.forEach(function(chk) {\n"
+    . "            if (chk.checked) {\n"
+    . "                count++;\n"
+    . "            }\n"
+    . "        });\n"
+    . "        toggle.textContent = count ? 'Konzeptverantwortliche (' + count + ')' : 'Konzeptverantwortliche wählen';\n"
+    . "    };\n"
+    . "\n"
+    . "    roots.forEach(function(root) {\n"
+    . "        var toggle = root.querySelector('[data-kg-reviewer-toggle]');\n"
+    . "        var panel = root.querySelector('[data-kg-reviewer-panel]');\n"
+    . "        if (!toggle || !panel) {\n"
+    . "            return;\n"
+    . "        }\n"
+    . "        updateLabel(root);\n"
+    . "        toggle.addEventListener('click', function() {\n"
+    . "            var ishidden = panel.classList.contains('kg-hidden');\n"
+    . "            closeAll(root);\n"
+    . "            panel.classList.toggle('kg-hidden', !ishidden);\n"
+    . "        });\n"
+    . "        root.addEventListener('change', function(event) {\n"
+    . "            var target = event.target;\n"
+    . "            if (!target || target.getAttribute('data-kg-reviewer-checkbox') !== '1') {\n"
+    . "                return;\n"
+    . "            }\n"
+    . "            updateLabel(root);\n"
+    . "        });\n"
+    . "    });\n"
+    . "    document.addEventListener('click', function(event) {\n"
+    . "        var target = event.target;\n"
+    . "        var inside = false;\n"
+    . "        roots.forEach(function(root) {\n"
+    . "            if (root.contains(target)) {\n"
+    . "                inside = true;\n"
+    . "            }\n"
+    . "        });\n"
+    . "        if (!inside) {\n"
+    . "            closeAll(null);\n"
+    . "        }\n"
+    . "    });\n"
+    . "\n"
+    . "    var openers = document.querySelectorAll('[data-kg-open-modal]');\n"
+    . "    var closeModalById = function(id) {\n"
+    . "        if (!id) {\n"
+    . "            return;\n"
+    . "        }\n"
+    . "        var modal = document.getElementById(id);\n"
+    . "        if (!modal) {\n"
+    . "            return;\n"
+    . "        }\n"
+    . "        modal.classList.add('kg-hidden');\n"
+    . "        document.body.style.overflow = '';\n"
+    . "    };\n"
+    . "    openers.forEach(function(opener) {\n"
+    . "        opener.addEventListener('click', function(event) {\n"
+    . "            event.preventDefault();\n"
+    . "            var id = opener.getAttribute('data-kg-open-modal');\n"
+    . "            if (!id) {\n"
+    . "                return;\n"
+    . "            }\n"
+    . "            var modal = document.getElementById(id);\n"
+    . "            if (!modal) {\n"
+    . "                return;\n"
+    . "            }\n"
+    . "            modal.classList.remove('kg-hidden');\n"
+    . "            document.body.style.overflow = 'hidden';\n"
+    . "        });\n"
+    . "    });\n"
+    . "    document.querySelectorAll('[data-kg-close-modal]').forEach(function(btn) {\n"
+    . "        btn.addEventListener('click', function() {\n"
+    . "            closeModalById(btn.getAttribute('data-kg-close-modal'));\n"
+    . "        });\n"
+    . "    });\n"
+    . "    document.querySelectorAll('[data-kg-modal]').forEach(function(modal) {\n"
+    . "        modal.addEventListener('click', function(event) {\n"
+    . "            if (event.target === modal) {\n"
+    . "                closeModalById(modal.id);\n"
+    . "            }\n"
+    . "        });\n"
+    . "    });\n"
+    . "})();\n"
+);
+echo html_writer::script(
+    "\n"
+    . "(function() {\n"
+    . "    document.querySelectorAll('[data-kg-accept-all-decisions]').forEach(function(btn) {\n"
+    . "        btn.addEventListener('click', function() {\n"
+    . "            var form = btn.closest('form');\n"
+    . "            if (!form) {\n"
+    . "                return;\n"
+    . "            }\n"
+    . "            form.querySelectorAll('select.kg-diff-decision').forEach(function(select) {\n"
+    . "                select.value = 'accepted';\n"
+    . "            });\n"
+    . "        });\n"
+    . "    });\n"
+    . "})();\n"
+);
 
 echo $OUTPUT->footer();

@@ -1,5 +1,26 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+
+/**
+ * Workflow service.
+ *
+ * @package    local_seminarplaner
+ * @copyright  2026 Guido Brombach <gibro@posteo.de>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 
 namespace local_seminarplaner\local\service;
 
@@ -8,8 +29,6 @@ use local_seminarplaner\local\repository\methodset_repository;
 use local_seminarplaner\local\repository\reviewer_repository;
 use local_seminarplaner\local\repository\workflow_event_repository;
 use local_seminarplaner\local\workflow\workflow_rules;
-
-defined('MOODLE_INTERNAL') || die();
 
 /**
  * Service for Draft -> Review -> Published transitions.
@@ -35,9 +54,12 @@ class workflow_service {
      * @param workflow_rules|null $rules Rules helper.
      * @param reviewer_repository|null $reviewerrepository Reviewer repository.
      */
-    public function __construct(?methodset_repository $methodsetrepository = null,
-        ?workflow_event_repository $eventrepository = null, ?workflow_rules $rules = null,
-        ?reviewer_repository $reviewerrepository = null) {
+    public function __construct(
+        ?methodset_repository $methodsetrepository = null,
+        ?workflow_event_repository $eventrepository = null,
+        ?workflow_rules $rules = null,
+        ?reviewer_repository $reviewerrepository = null
+    ) {
         $this->methodsetrepository = $methodsetrepository ?? new methodset_repository();
         $this->eventrepository = $eventrepository ?? new workflow_event_repository();
         $this->rules = $rules ?? new workflow_rules();
@@ -126,7 +148,7 @@ class workflow_service {
             return;
         }
 
-        list($insql, $params) = $DB->get_in_or_equal($reviewerids, SQL_PARAMS_NAMED);
+        [$insql, $params] = $DB->get_in_or_equal($reviewerids, SQL_PARAMS_NAMED);
         $reviewers = $DB->get_records_select('user', "id {$insql} AND deleted = 0 AND suspended = 0", $params);
         if (!$reviewers) {
             return;
