@@ -29,7 +29,7 @@ use local_seminarplaner\local\repository\methodset_repository;
 /**
  * Tests for the method set repository.
  */
-final class local_seminarplaner_methodset_repository_test extends advanced_testcase {
+final class methodset_repository_test extends advanced_testcase {
     public function test_list_all_methodsets_can_filter_by_status(): void {
         $this->resetAfterTest(true);
 

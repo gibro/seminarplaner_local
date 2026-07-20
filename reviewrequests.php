@@ -68,8 +68,12 @@ function local_seminarplaner_get_reviewer_candidates(context $scopecontext): arr
     global $DB;
 
     $fields = 'u.id,u.firstname,u.lastname,u.firstnamephonetic,u.lastnamephonetic,u.middlename,u.alternatename,u.email';
-    $candidates = get_users_by_capability($scopecontext, 'local/seminarplaner:reviewset', $fields,
-        'u.lastname ASC, u.firstname ASC');
+    $candidates = get_users_by_capability(
+        $scopecontext,
+        'local/seminarplaner:reviewset',
+        $fields,
+        'u.lastname ASC, u.firstname ASC'
+    );
     $byid = [];
     foreach ($candidates as $candidate) {
         $byid[(int)$candidate->id] = $candidate;
@@ -101,7 +105,7 @@ function local_seminarplaner_get_reviewer_candidates(context $scopecontext): arr
         }
     }
 
-    uasort($byid, static function(stdClass $a, stdClass $b): int {
+    uasort($byid, static function (stdClass $a, stdClass $b): int {
         $alast = core_text::strtolower((string)($a->lastname ?? ''));
         $blast = core_text::strtolower((string)($b->lastname ?? ''));
         if ($alast !== $blast) {
@@ -267,8 +271,10 @@ function local_seminarplaner_build_reviewdiff_payload(
             'data-kg-accept-all-decisions' => '1',
         ]);
         $modalcontent .= html_writer::end_div();
-        $modalcontent .= html_writer::div(local_seminarplaner_render_review_diff_sections($diff, $decisions, true),
-            'kg-modal-body');
+        $modalcontent .= html_writer::div(
+            local_seminarplaner_render_review_diff_sections($diff, $decisions, true),
+            'kg-modal-body'
+        );
         $modalcontent .= html_writer::start_div('kg-modal-actions');
         $modalcontent .= html_writer::tag('button', get_string('savereviewdecisions', 'local_seminarplaner'), [
             'type' => 'submit',
@@ -282,8 +288,10 @@ function local_seminarplaner_build_reviewdiff_payload(
         $modalcontent .= html_writer::end_div();
         $modalcontent .= html_writer::end_tag('form');
     } else {
-        $modalcontent = html_writer::div(local_seminarplaner_render_review_diff_sections($diff, $decisions, false),
-            'kg-modal-body');
+        $modalcontent = html_writer::div(
+            local_seminarplaner_render_review_diff_sections($diff, $decisions, false),
+            'kg-modal-body'
+        );
         $modalcontent .= html_writer::start_div('kg-modal-actions');
         $modalcontent .= html_writer::tag('button', get_string('closebuttontitle', 'moodle'), [
             'type' => 'button',
@@ -296,9 +304,11 @@ function local_seminarplaner_build_reviewdiff_payload(
     $modal = html_writer::start_div('kg-modal kg-hidden', ['id' => $modalid, 'data-kg-modal' => '1']);
     $modal .= html_writer::start_div('kg-modal-content');
     $modal .= html_writer::start_div('kg-modal-header');
-    $modal .= html_writer::tag('div',
+    $modal .= html_writer::tag(
+        'div',
         get_string('reviewdiffpopuptitle', 'local_seminarplaner', format_string($set->displayname)),
-        ['class' => 'kg-modal-title']);
+        ['class' => 'kg-modal-title']
+    );
     $modal .= html_writer::tag('button', '×', [
         'type' => 'button',
         'class' => 'kg-modal-close',
@@ -695,8 +705,11 @@ if ($action === 'savereviewdecisions' && confirm_sesskey()) {
         );
         $submitterid = (int)($submitevent->actorid ?? 0);
         if ($submitterid > 0) {
-            $submitter = $DB->get_record('user', ['id' => $submitterid, 'deleted' => 0, 'suspended' => 0],
-                'id,username,email,firstname,lastname,firstnamephonetic,lastnamephonetic,middlename,alternatename,mailformat');
+            $submitter = $DB->get_record(
+                'user',
+                ['id' => $submitterid, 'deleted' => 0, 'suspended' => 0],
+                'id,username,email,firstname,lastname,firstnamephonetic,lastnamephonetic,middlename,alternatename,mailformat'
+            );
             if ($submitter) {
                 $setname = format_string((string)$set->displayname);
                 $a = (object)[

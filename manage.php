@@ -54,8 +54,11 @@ $shortnameexplainertext = $stringmanager->string_exists('shortnameexplainer', 'l
  * @param \local_seminarplaner\local\repository\methodset_repository $repo Repository instance.
  * @return int New draft version id.
  */
-function local_seminarplaner_fork_current_version_to_draft(stdClass $methodset, int $actorid,
-    \local_seminarplaner\local\repository\methodset_repository $repo): int {
+function local_seminarplaner_fork_current_version_to_draft(
+    stdClass $methodset,
+    int $actorid,
+    \local_seminarplaner\local\repository\methodset_repository $repo
+): int {
     global $DB;
 
     $sourceversionid = (int)($methodset->currentversion ?? 0);
@@ -192,8 +195,10 @@ if ($action === 'delete' && confirm_sesskey()) {
 // die Bibliotheks-Behandlung im mod-Plugin (Sammlungen immer durchsuchbar,
 // Seminarkonzepte nur nach explizitem Import).
 if ($action === 'editmethodset' && confirm_sesskey()) {
-    if (!has_capability('local/seminarplaner:editdraftset', $syscontext) &&
-            !has_capability('local/seminarplaner:archiveglobalset', $syscontext)) {
+    if (
+        !has_capability('local/seminarplaner:editdraftset', $syscontext) &&
+            !has_capability('local/seminarplaner:archiveglobalset', $syscontext)
+    ) {
         throw new required_capability_exception($syscontext, 'local/seminarplaner:editdraftset', 'nopermissions', '');
     }
     $methodsetid = required_param('methodsetid', PARAM_INT);
@@ -587,8 +592,11 @@ foreach ($methodsets as $set) {
     }
     if ($publishedbyid) {
         if (!array_key_exists($publishedbyid, $usercache)) {
-            $usercache[$publishedbyid] = $DB->get_record('user', ['id' => $publishedbyid],
-                'id,firstname,lastname,firstnamephonetic,lastnamephonetic,middlename,alternatename');
+            $usercache[$publishedbyid] = $DB->get_record(
+                'user',
+                ['id' => $publishedbyid],
+                'id,firstname,lastname,firstnamephonetic,lastnamephonetic,middlename,alternatename'
+            );
         }
         if (!empty($usercache[$publishedbyid])) {
             $publishedbyname = fullname($usercache[$publishedbyid]);
@@ -639,7 +647,8 @@ foreach ($methodsets as $set) {
         ]);
         $editform .= html_writer::end_tag('form');
 
-        $actions[] = html_writer::tag('button',
+        $actions[] = html_writer::tag(
+            'button',
             $OUTPUT->pix_icon('t/editstring', get_string('edit')) . html_writer::tag('span', get_string('edit')),
             [
                 'type' => 'button',

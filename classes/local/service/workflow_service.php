@@ -56,9 +56,12 @@ class workflow_service {
      * @param workflow_rules|null $rules Rules helper.
      * @param reviewer_repository|null $reviewerrepository Reviewer repository.
      */
-    public function __construct(?methodset_repository $methodsetrepository = null,
-        ?workflow_event_repository $eventrepository = null, ?workflow_rules $rules = null,
-        ?reviewer_repository $reviewerrepository = null) {
+    public function __construct(
+        ?methodset_repository $methodsetrepository = null,
+        ?workflow_event_repository $eventrepository = null,
+        ?workflow_rules $rules = null,
+        ?reviewer_repository $reviewerrepository = null
+    ) {
         $this->methodsetrepository = $methodsetrepository ?? new methodset_repository();
         $this->eventrepository = $eventrepository ?? new workflow_event_repository();
         $this->rules = $rules ?? new workflow_rules();
@@ -147,7 +150,7 @@ class workflow_service {
             return;
         }
 
-        list($insql, $params) = $DB->get_in_or_equal($reviewerids, SQL_PARAMS_NAMED);
+        [$insql, $params] = $DB->get_in_or_equal($reviewerids, SQL_PARAMS_NAMED);
         $reviewers = $DB->get_records_select('user', "id {$insql} AND deleted = 0 AND suspended = 0", $params);
         if (!$reviewers) {
             return;

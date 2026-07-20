@@ -41,8 +41,14 @@ class workflow_event_repository {
      * @param int $actorid Actor user id.
      * @return int New event id.
      */
-    public function create(int $methodsetid, ?int $versionid, string $fromstatus, string $tostatus, string $comment,
-        int $actorid): int {
+    public function create(
+        int $methodsetid,
+        ?int $versionid,
+        string $fromstatus,
+        string $tostatus,
+        string $comment,
+        int $actorid
+    ): int {
         global $DB;
 
         $record = (object)[

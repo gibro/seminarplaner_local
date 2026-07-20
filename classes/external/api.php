@@ -86,7 +86,7 @@ class api extends external_api {
             $entries = [];
         }
 
-        $entries = array_values(array_filter($entries, static function($ts) use ($windowstart) {
+        $entries = array_values(array_filter($entries, static function ($ts) use ($windowstart) {
             return is_int($ts) && $ts >= $windowstart;
         }));
         if (count($entries) >= $maxrequests) {
@@ -106,8 +106,12 @@ class api extends external_api {
         ]);
     }
 
-    public static function create_draft_methodset(string $shortname, string $displayname, string $description,
-        int $scopecontextid): array {
+    public static function create_draft_methodset(
+        string $shortname,
+        string $displayname,
+        string $description,
+        int $scopecontextid
+    ): array {
         $params = self::validate_parameters(self::create_draft_methodset_parameters(), [
             'shortname' => $shortname,
             'displayname' => $displayname,
@@ -123,8 +127,13 @@ class api extends external_api {
         }
 
         $repo = new methodset_repository();
-        $methodsetid = $repo->create_methodset_draft((string)$params['shortname'], (string)$params['displayname'],
-            (string)$params['description'], (int)$ctx->id, (int)$GLOBALS['USER']->id);
+        $methodsetid = $repo->create_methodset_draft(
+            (string)$params['shortname'],
+            (string)$params['displayname'],
+            (string)$params['description'],
+            (int)$ctx->id,
+            (int)$GLOBALS['USER']->id
+        );
         $versionid = $repo->create_version((int)$methodsetid, 1, 'draft', '{}', (int)$GLOBALS['USER']->id);
 
         return ['methodsetid' => $methodsetid, 'versionid' => $versionid];
@@ -185,8 +194,13 @@ class api extends external_api {
         }
 
         $service = new workflow_service();
-        $service->transition((int)$params['methodsetid'], $params['versionid'] ? (int)$params['versionid'] : null,
-            $target, (int)$GLOBALS['USER']->id, (string)$params['comment']);
+        $service->transition(
+            (int)$params['methodsetid'],
+            $params['versionid'] ? (int)$params['versionid'] : null,
+            $target,
+            (int)$GLOBALS['USER']->id,
+            (string)$params['comment']
+        );
 
         return ['success' => true];
     }

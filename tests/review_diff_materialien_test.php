@@ -33,7 +33,7 @@ require_once($CFG->dirroot . '/local/seminarplaner/locallib.php');
  * A submission that only adds a handout used to be reported as "no differences",
  * because the diff read local_kgen_method only and attachments live in their own table.
  */
-final class local_seminarplaner_review_diff_materialien_test extends advanced_testcase {
+final class review_diff_materialien_test extends advanced_testcase {
     /** @var int Method set id. */
     private int $methodsetid = 0;
 

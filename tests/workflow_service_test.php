@@ -31,7 +31,7 @@ use local_seminarplaner\local\service\workflow_service;
 /**
  * DB-backed tests for workflow service.
  */
-final class local_seminarplaner_workflow_service_test extends advanced_testcase {
+final class workflow_service_test extends advanced_testcase {
     public function test_transition_draft_to_review_to_published(): void {
         $this->resetAfterTest(true);
 

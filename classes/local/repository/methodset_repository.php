@@ -41,8 +41,14 @@ class methodset_repository {
      * @param string $concepttype Object kind (D32): 'sammlung' or 'seminarkonzept'.
      * @return int
      */
-    public function create_methodset_draft(string $shortname, string $displayname, string $description, int $scopecontextid,
-        int $actorid, string $concepttype = 'sammlung'): int {
+    public function create_methodset_draft(
+        string $shortname,
+        string $displayname,
+        string $description,
+        int $scopecontextid,
+        int $actorid,
+        string $concepttype = 'sammlung'
+    ): int {
         global $DB;
 
         $now = time();
@@ -274,7 +280,7 @@ class methodset_repository {
             'methodsetid' => $methodsetid,
         ]);
         if (!empty($methodids)) {
-            list($insql, $params) = $DB->get_in_or_equal($methodids, SQL_PARAMS_NAMED);
+            [$insql, $params] = $DB->get_in_or_equal($methodids, SQL_PARAMS_NAMED);
             $DB->delete_records_select('local_kgen_method_file', "methodid {$insql}", $params);
         }
 

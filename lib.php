@@ -48,8 +48,10 @@ function local_seminarplaner_can_access_reviewrequests(int $userid): bool {
         return false;
     }
 
-    if (has_capability('local/seminarplaner:publishset', $syscontext, $userid)
-            || has_capability('local/seminarplaner:archiveglobalset', $syscontext, $userid)) {
+    if (
+        has_capability('local/seminarplaner:publishset', $syscontext, $userid)
+            || has_capability('local/seminarplaner:archiveglobalset', $syscontext, $userid)
+    ) {
         return true;
     }
 

@@ -83,4 +83,3 @@ class reviewer_repository {
         return array_values(array_map('intval', $ids));
     }
 }
-

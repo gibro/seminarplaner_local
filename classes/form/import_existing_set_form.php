@@ -45,8 +45,12 @@ class import_existing_set_form extends moodleform {
         $mform->addElement('hidden', 'action', 'importmoddata_existingset');
         $mform->setType('action', PARAM_ALPHANUMEXT);
 
-        $mform->addElement('select', 'methodsetid', get_string('targetdraftset', 'local_seminarplaner'),
-            $draftoptions + ['' => get_string('choose')]);
+        $mform->addElement(
+            'select',
+            'methodsetid',
+            get_string('targetdraftset', 'local_seminarplaner'),
+            $draftoptions + ['' => get_string('choose')]
+        );
         $mform->setType('methodsetid', PARAM_INT);
         $mform->addRule('methodsetid', null, 'required', null, 'client');
 

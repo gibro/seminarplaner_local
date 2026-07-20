@@ -40,11 +40,7 @@ use core_privacy\local\request\writer;
 /**
  * Privacy provider implementation for local_seminarplaner.
  */
-final class provider implements
-    \core_privacy\local\metadata\provider,
-    request_provider,
-    core_userlist_provider {
-
+final class provider implements \core_privacy\local\metadata\provider, core_userlist_provider, request_provider {
     /**
      * @inheritDoc
      */
@@ -169,8 +165,11 @@ final class provider implements
                 'methods_created' => array_values($DB->get_records('local_kgen_method', ['createdby' => $userid])),
                 'methods_modified' => array_values($DB->get_records('local_kgen_method', ['modifiedby' => $userid])),
                 'workflow_events' => array_values($DB->get_records('local_kgen_workflow_event', ['actorid' => $userid])),
-                'reviewer_assignments' => array_values($DB->get_records_select('local_kgen_set_reviewer',
-                    'userid = ? OR assignedby = ?', [$userid, $userid])),
+                'reviewer_assignments' => array_values($DB->get_records_select(
+                    'local_kgen_set_reviewer',
+                    'userid = ? OR assignedby = ?',
+                    [$userid, $userid]
+                )),
                 'review_decisions' => array_values($DB->get_records('local_kgen_review_decision', ['reviewerid' => $userid])),
             ];
             writer::with_context($context)->export_data(['global_workflow'], $data);

@@ -32,7 +32,7 @@ use local_seminarplaner\local\repository\methodset_repository;
 /**
  * Tests for updating an existing method set via import (upsert mode).
  */
-final class local_seminarplaner_import_upsert_test extends advanced_testcase {
+final class import_upsert_test extends advanced_testcase {
     /** @var int Method set id. */
     private $methodsetid;
 
@@ -44,8 +44,13 @@ final class local_seminarplaner_import_upsert_test extends advanced_testcase {
         $this->resetAfterTest(true);
 
         $repo = new methodset_repository();
-        $this->methodsetid = $repo->create_methodset_draft('upsertset', 'Upsert Set', 'desc',
-            (int)context_system::instance()->id, 2);
+        $this->methodsetid = $repo->create_methodset_draft(
+            'upsertset',
+            'Upsert Set',
+            'desc',
+            (int)context_system::instance()->id,
+            2
+        );
         $this->versionid = $repo->create_version($this->methodsetid, 1, 'draft', '{}', 2);
     }
 
@@ -71,7 +76,13 @@ final class local_seminarplaner_import_upsert_test extends advanced_testcase {
      */
     private function import(array $records, array $zipfiles = [], string $mode = 'upsert'): array {
         return local_seminarplaner_import_records_to_set(
-            $this->methodsetid, $this->versionid, 2, $records, $zipfiles, $mode);
+            $this->methodsetid,
+            $this->versionid,
+            2,
+            $records,
+            $zipfiles,
+            $mode
+        );
     }
 
     /**
@@ -99,8 +110,14 @@ final class local_seminarplaner_import_upsert_test extends advanced_testcase {
         $names = [];
         $links = $DB->get_records('local_kgen_method_file', ['methodid' => $methodid, 'kind' => 'material']);
         foreach ($links as $link) {
-            $files = $fs->get_area_files($contextid, 'local_seminarplaner', 'method_material',
-                (int)$link->fileitemid, 'filename ASC', false);
+            $files = $fs->get_area_files(
+                $contextid,
+                'local_seminarplaner',
+                'method_material',
+                (int)$link->fileitemid,
+                'filename ASC',
+                false
+            );
             foreach ($files as $file) {
                 $names[] = (string)$file->get_filename();
             }
@@ -232,8 +249,14 @@ final class local_seminarplaner_import_upsert_test extends advanced_testcase {
         $contextid = (int)context_system::instance()->id;
         $links = $DB->get_records('local_kgen_method_file', ['methodid' => $methodid, 'kind' => 'material']);
         foreach ($links as $link) {
-            $file = $fs->get_file($contextid, 'local_seminarplaner', 'method_material',
-                (int)$link->fileitemid, '/', $filename);
+            $file = $fs->get_file(
+                $contextid,
+                'local_seminarplaner',
+                'method_material',
+                (int)$link->fileitemid,
+                '/',
+                $filename
+            );
             if ($file) {
                 return (string)$file->get_content();
             }

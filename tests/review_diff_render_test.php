@@ -29,7 +29,7 @@ require_once(__DIR__ . '/../locallib.php');
 /**
  * Tests for review diff rendering helpers.
  */
-final class local_seminarplaner_review_diff_render_test extends advanced_testcase {
+final class review_diff_render_test extends advanced_testcase {
     public function test_render_diff_method_is_editable_when_requested(): void {
         $this->resetAfterTest(true);
 
