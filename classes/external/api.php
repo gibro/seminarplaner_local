@@ -88,13 +88,20 @@ class api extends external_api {
             return is_int($ts) && $ts >= $windowstart;
         }));
         if (count($entries) >= $maxrequests) {
-            throw new invalid_parameter_exception('Zu viele Schreibanfragen in kurzer Zeit. Bitte kurz warten und erneut versuchen.');
+            throw new invalid_parameter_exception(
+                'Zu viele Schreibanfragen in kurzer Zeit. Bitte kurz warten und erneut versuchen.'
+            );
         }
 
         $entries[] = $now;
         $SESSION->local_seminarplaner_ratelimit[$action] = $entries;
     }
 
+    /**
+     * Beschreibt die Parameter für das Anlegen eines Methodenset-Entwurfs.
+     *
+     * @return external_function_parameters Parameterdefinition des Webservice.
+     */
     public static function create_draft_methodset_parameters(): external_function_parameters {
         return new external_function_parameters([
             'shortname' => new external_value(PARAM_ALPHANUMEXT, 'Short unique name'),
@@ -104,6 +111,15 @@ class api extends external_api {
         ]);
     }
 
+    /**
+     * Legt ein neues Methodenset als Entwurf samt erster Version an.
+     *
+     * @param string $shortname Eindeutiger Kurzname des Methodensets.
+     * @param string $displayname Anzeigename des Methodensets.
+     * @param string $description Beschreibungstext des Methodensets.
+     * @param int $scopecontextid Kontext-Id (System oder Kursbereich), in dem das Set gilt.
+     * @return array Array mit den Schlüsseln methodsetid und versionid.
+     */
     public static function create_draft_methodset(
         string $shortname,
         string $displayname,
@@ -137,6 +153,11 @@ class api extends external_api {
         return ['methodsetid' => $methodsetid, 'versionid' => $versionid];
     }
 
+    /**
+     * Beschreibt den Rückgabewert für das Anlegen eines Methodenset-Entwurfs.
+     *
+     * @return external_single_structure Rückgabedefinition des Webservice.
+     */
     public static function create_draft_methodset_returns(): external_single_structure {
         return new external_single_structure([
             'methodsetid' => new external_value(PARAM_INT, 'Method set id'),
@@ -144,6 +165,11 @@ class api extends external_api {
         ]);
     }
 
+    /**
+     * Beschreibt die Parameter für den Statuswechsel eines Methodensets.
+     *
+     * @return external_function_parameters Parameterdefinition des Webservice.
+     */
     public static function transition_methodset_parameters(): external_function_parameters {
         return new external_function_parameters([
             'methodsetid' => new external_value(PARAM_INT, 'Method set id'),
@@ -153,6 +179,15 @@ class api extends external_api {
         ]);
     }
 
+    /**
+     * Führt einen Statuswechsel für ein Methodenset durch.
+     *
+     * @param int $methodsetid Id des Methodensets.
+     * @param int $versionid Id der betroffenen Version, 0 für keine bestimmte Version.
+     * @param string $tostatus Zielstatus (draft, review, published oder archived).
+     * @param string $comment Optionaler Kommentar zum Statuswechsel.
+     * @return array Array mit dem Schlüssel success.
+     */
     public static function transition_methodset(int $methodsetid, int $versionid, string $tostatus, string $comment = ''): array {
         $params = self::validate_parameters(self::transition_methodset_parameters(), [
             'methodsetid' => $methodsetid,
@@ -203,12 +238,22 @@ class api extends external_api {
         return ['success' => true];
     }
 
+    /**
+     * Beschreibt den Rückgabewert für den Statuswechsel eines Methodensets.
+     *
+     * @return external_single_structure Rückgabedefinition des Webservice.
+     */
     public static function transition_methodset_returns(): external_single_structure {
         return new external_single_structure([
             'success' => new external_value(PARAM_BOOL, 'Transition status'),
         ]);
     }
 
+    /**
+     * Beschreibt die Parameter für das Auflisten von Methodensets.
+     *
+     * @return external_function_parameters Parameterdefinition des Webservice.
+     */
     public static function list_methodsets_parameters(): external_function_parameters {
         return new external_function_parameters([
             'scopecontextid' => new external_value(PARAM_INT, 'System/category context id'),
@@ -216,6 +261,13 @@ class api extends external_api {
         ]);
     }
 
+    /**
+     * Listet die Methodensets eines Kontexts auf, optional nach Status gefiltert.
+     *
+     * @param int $scopecontextid Kontext-Id (System oder Kursbereich).
+     * @param string $status Optionaler Statusfilter, leer für alle Status.
+     * @return array Array mit dem Schlüssel methodsets.
+     */
     public static function list_methodsets(int $scopecontextid, string $status = ''): array {
         $params = self::validate_parameters(self::list_methodsets_parameters(), [
             'scopecontextid' => $scopecontextid,
@@ -243,6 +295,11 @@ class api extends external_api {
         return ['methodsets' => $out];
     }
 
+    /**
+     * Beschreibt den Rückgabewert für das Auflisten von Methodensets.
+     *
+     * @return external_single_structure Rückgabedefinition des Webservice.
+     */
     public static function list_methodsets_returns(): external_single_structure {
         return new external_single_structure([
             'methodsets' => new external_multiple_structure(new external_single_structure([

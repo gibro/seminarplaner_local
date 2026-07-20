@@ -40,7 +40,10 @@ use core_privacy\local\request\writer;
  */
 final class provider implements \core_privacy\local\metadata\provider, core_userlist_provider, request_provider {
     /**
-     * @inheritDoc
+     * Beschreibt die vom Plugin gespeicherten personenbezogenen Daten.
+     *
+     * @param collection $items Sammlung, in der die Metadaten ergänzt werden.
+     * @return collection Die ergänzte Sammlung.
      */
     public static function get_metadata(collection $items): collection {
         $items->add_database_table('local_kgen_methodset', [
@@ -92,7 +95,10 @@ final class provider implements \core_privacy\local\metadata\provider, core_user
     }
 
     /**
-     * @inheritDoc
+     * Ermittelt die Kontexte, in denen Daten der angegebenen Nutzerin oder des Nutzers liegen.
+     *
+     * @param int $userid Id der Nutzerin oder des Nutzers.
+     * @return contextlist Liste der betroffenen Kontexte.
      */
     public static function get_contexts_for_userid(int $userid): contextlist {
         global $DB;
@@ -124,7 +130,10 @@ final class provider implements \core_privacy\local\metadata\provider, core_user
     }
 
     /**
-     * @inheritDoc
+     * Ergänzt die Liste der Nutzerinnen und Nutzer mit Daten im angegebenen Kontext.
+     *
+     * @param userlist $userlist Nutzerliste des zu prüfenden Kontexts.
+     * @return void
      */
     public static function get_users_in_context(userlist $userlist): void {
         $context = $userlist->get_context();
@@ -134,8 +143,16 @@ final class provider implements \core_privacy\local\metadata\provider, core_user
 
         $userlist->add_from_sql('createdby', 'SELECT createdby FROM {local_kgen_methodset}', []);
         $userlist->add_from_sql('modifiedby', 'SELECT modifiedby FROM {local_kgen_methodset}', []);
-        $userlist->add_from_sql('reviewedby', 'SELECT reviewedby FROM {local_kgen_methodset_ver} WHERE reviewedby IS NOT NULL', []);
-        $userlist->add_from_sql('publishedby', 'SELECT publishedby FROM {local_kgen_methodset_ver} WHERE publishedby IS NOT NULL', []);
+        $userlist->add_from_sql(
+            'reviewedby',
+            'SELECT reviewedby FROM {local_kgen_methodset_ver} WHERE reviewedby IS NOT NULL',
+            []
+        );
+        $userlist->add_from_sql(
+            'publishedby',
+            'SELECT publishedby FROM {local_kgen_methodset_ver} WHERE publishedby IS NOT NULL',
+            []
+        );
         $userlist->add_from_sql('createdby', 'SELECT createdby FROM {local_kgen_method}', []);
         $userlist->add_from_sql('modifiedby', 'SELECT modifiedby FROM {local_kgen_method}', []);
         $userlist->add_from_sql('actorid', 'SELECT actorid FROM {local_kgen_workflow_event}', []);
@@ -145,7 +162,10 @@ final class provider implements \core_privacy\local\metadata\provider, core_user
     }
 
     /**
-     * @inheritDoc
+     * Exportiert die Daten der Nutzerin oder des Nutzers für die freigegebenen Kontexte.
+     *
+     * @param approved_contextlist $contextlist Freigegebene Kontexte samt Nutzerbezug.
+     * @return void
      */
     public static function export_user_data(approved_contextlist $contextlist): void {
         global $DB;
@@ -175,7 +195,10 @@ final class provider implements \core_privacy\local\metadata\provider, core_user
     }
 
     /**
-     * @inheritDoc
+     * Löscht bzw. anonymisiert die Daten aller Nutzerinnen und Nutzer im angegebenen Kontext.
+     *
+     * @param context $context Der zu bereinigende Kontext.
+     * @return void
      */
     public static function delete_data_for_all_users_in_context(context $context): void {
         global $DB;
@@ -192,7 +215,10 @@ final class provider implements \core_privacy\local\metadata\provider, core_user
     }
 
     /**
-     * @inheritDoc
+     * Löscht bzw. anonymisiert die Daten einer Nutzerin oder eines Nutzers in den freigegebenen Kontexten.
+     *
+     * @param approved_contextlist $contextlist Freigegebene Kontexte samt Nutzerbezug.
+     * @return void
      */
     public static function delete_data_for_user(approved_contextlist $contextlist): void {
         $userid = (int)$contextlist->get_user()->id;
@@ -202,7 +228,10 @@ final class provider implements \core_privacy\local\metadata\provider, core_user
     }
 
     /**
-     * @inheritDoc
+     * Löscht bzw. anonymisiert die Daten der freigegebenen Nutzerinnen und Nutzer in deren Kontext.
+     *
+     * @param approved_userlist $userlist Freigegebene Nutzerliste samt Kontext.
+     * @return void
      */
     public static function delete_data_for_users(approved_userlist $userlist): void {
         self::delete_user_from_context($userlist->get_context(), $userlist->get_userids());
@@ -226,7 +255,11 @@ final class provider implements \core_privacy\local\metadata\provider, core_user
 
         $DB->delete_records_select('local_kgen_workflow_event', "actorid {$insql}", $params);
         $DB->delete_records_select('local_kgen_review_decision', "reviewerid {$insql}", $params);
-        $DB->delete_records_select('local_kgen_set_reviewer', "userid {$insql} OR assignedby {$insql}", array_merge($params, $params));
+        $DB->delete_records_select(
+            'local_kgen_set_reviewer',
+            "userid {$insql} OR assignedby {$insql}",
+            array_merge($params, $params)
+        );
 
         $DB->execute("UPDATE {local_kgen_methodset_ver} SET reviewedby = NULL WHERE reviewedby {$insql}", $params);
         $DB->execute("UPDATE {local_kgen_methodset_ver} SET publishedby = NULL WHERE publishedby {$insql}", $params);

@@ -455,14 +455,17 @@ echo html_writer::tag('style', '
 .kg-admin-card{padding:14px;border:1px solid #d1d5db;border-radius:10px;background:#fff}
 .kg-admin-card h3{margin-top:0}
 .kg-admin-row{display:flex;flex-direction:column;gap:6px;margin:10px 0}
-.kg-admin-row input[type=\"text\"],.kg-admin-row textarea,.kg-admin-row select,.kg-admin-row input[type=\"file\"]{max-width:100%;min-height:36px;padding:8px;border:1px solid #d1d5db;border-radius:8px}
+.kg-admin-row input[type=\"text\"],.kg-admin-row textarea,.kg-admin-row select,.kg-admin-row input[type=\"file\"]{
+max-width:100%;min-height:36px;padding:8px;border:1px solid #d1d5db;border-radius:8px}
 .kg-admin-actions{margin-top:12px}
 .kg-action-link{white-space:nowrap}
 .kg-reviewer-form{display:flex;flex-direction:column;gap:8px;min-width:280px}
 .kg-reviewdiff-link{font-weight:600}
 .kg-tag-dropdown{position:relative}
-.kg-tag-dropdown-toggle{width:100%;min-height:36px;padding:8px;border:1px solid #d1d5db;border-radius:8px;background:#fff;text-align:left;cursor:pointer}
-.kg-tag-dropdown-panel{position:absolute;z-index:20;left:0;right:0;max-height:220px;overflow:auto;background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:8px;box-shadow:0 6px 20px rgba(0,0,0,.12)}
+.kg-tag-dropdown-toggle{width:100%;min-height:36px;padding:8px;border:1px solid #d1d5db;border-radius:8px;
+background:#fff;text-align:left;cursor:pointer}
+.kg-tag-dropdown-panel{position:absolute;z-index:20;left:0;right:0;max-height:220px;overflow:auto;background:#fff;
+border:1px solid #d1d5db;border-radius:8px;padding:8px;box-shadow:0 6px 20px rgba(0,0,0,.12)}
 .kg-tag-option{display:flex;align-items:center;gap:8px;padding:4px 2px}
 .kg-hidden{display:none}
 .kg-review-diff{display:flex;flex-direction:column;gap:10px}
@@ -481,8 +484,10 @@ echo html_writer::tag('style', '
 .kg-diff-badge-removed{background:#fee2e2;color:#b91c1c}
 .kg-diff-badge-replaced{background:#fef3c7;color:#b45309}
 .kg-diff-decision{min-width:130px}
-.kg-modal{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding:36px 16px}
-.kg-modal-content{background:#fff;border-radius:12px;box-shadow:0 20px 48px rgba(0,0,0,.25);width:min(1200px,96vw);max-height:88vh;overflow:auto;padding:16px}
+.kg-modal{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;
+justify-content:center;padding:36px 16px}
+.kg-modal-content{background:#fff;border-radius:12px;box-shadow:0 20px 48px rgba(0,0,0,.25);width:min(1200px,96vw);
+max-height:88vh;overflow:auto;padding:16px}
 .kg-modal-header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
 .kg-modal-title{font-size:18px;font-weight:700}
 .kg-modal-close{border:1px solid #d1d5db;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer}
@@ -491,11 +496,13 @@ echo html_writer::tag('style', '
 .kg-inline-rename input[type=\"text\"]{min-width:180px;max-width:260px;padding:8px;border:1px solid #d1d5db;border-radius:8px}
 .kg-shortname-cell{display:flex;flex-direction:column;gap:6px}
 .kg-name-with-edit{display:inline-flex;align-items:center;gap:6px}
-.kg-name-edit-btn{display:inline-flex;align-items:center;justify-content:center;padding:0;margin:0;border:0;background:transparent;color:#646464;cursor:pointer}
+.kg-name-edit-btn{display:inline-flex;align-items:center;justify-content:center;padding:0;margin:0;border:0;
+background:transparent;color:#646464;cursor:pointer}
 .kg-name-edit-btn:hover{border:0;background:transparent;color:#2F80AB}
 .kg-name-edit-btn .icon{margin:0}
 .kg-inline-rename .kg-btn{margin-top:0;margin-bottom:0}
-.kg-inline-edit{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;padding:10px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb}
+.kg-inline-edit{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;padding:10px;
+border:1px solid #d1d5db;border-radius:8px;background:#f9fafb}
 .kg-inline-edit input[type=\"text\"]{min-width:180px;max-width:260px;padding:8px;border:1px solid #d1d5db;border-radius:8px}
 .kg-inline-edit select{padding:8px;border:1px solid #d1d5db;border-radius:8px}
 .kg-inline-edit__label{font-size:12px;font-weight:600;color:#374151;margin:0}
@@ -531,7 +538,10 @@ echo html_writer::start_div('kg-admin-grid');
 echo html_writer::start_div('kg-admin-card');
 echo html_writer::tag('h3', get_string('globalmethodsets', 'local_seminarplaner'));
 if (has_capability('local/seminarplaner:publishset', $syscontext)) {
-    echo html_writer::start_tag('form', ['method' => 'post', 'action' => (new moodle_url('/local/seminarplaner/manage.php'))->out(false)]);
+    echo html_writer::start_tag('form', [
+        'method' => 'post',
+        'action' => (new moodle_url('/local/seminarplaner/manage.php'))->out(false),
+    ]);
     echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
     echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'syncallactivities']);
     echo html_writer::empty_tag('input', [
@@ -635,7 +645,11 @@ foreach ($methodsets as $set) {
             'required' => 'required',
             'data-kg-edit-input' => '1',
         ]);
-        $editform .= html_writer::tag('label', get_string('concepttypecol', 'local_seminarplaner'), ['class' => 'kg-inline-edit__label']);
+        $editform .= html_writer::tag(
+            'label',
+            get_string('concepttypecol', 'local_seminarplaner'),
+            ['class' => 'kg-inline-edit__label']
+        );
         $editform .= html_writer::select([
             'sammlung' => get_string('concepttype_sammlung', 'local_seminarplaner'),
             'seminarkonzept' => get_string('concepttype_seminarkonzept', 'local_seminarplaner'),
@@ -671,7 +685,8 @@ foreach ($methodsets as $set) {
             'methodsetid' => $set->id,
         ]), $deletelabel, [
             'class' => 'kg-action-link',
-            'onclick' => "return confirm(" . json_encode(get_string('deleteconfirm', 'local_seminarplaner', $set->displayname)) . ");",
+            'onclick' => "return confirm("
+                . json_encode(get_string('deleteconfirm', 'local_seminarplaner', $set->displayname)) . ");",
         ]);
     }
 
@@ -693,7 +708,32 @@ foreach ($methodsets as $set) {
 
 echo html_writer::table($table);
 echo html_writer::end_div();
-echo html_writer::script("\n(function() {\n    document.querySelectorAll('[data-kg-edit-toggle]').forEach(function(btn) {\n        btn.addEventListener('click', function() {\n            var targetid = btn.getAttribute('data-kg-edit-toggle');\n            if (!targetid) {\n                return;\n            }\n            var form = document.getElementById(targetid);\n            if (!form) {\n                return;\n            }\n            form.classList.toggle('kg-hidden');\n            if (!form.classList.contains('kg-hidden')) {\n                var input = form.querySelector('[data-kg-edit-input]');\n                if (input) {\n                    input.focus();\n                    if (input.select) {\n                        input.select();\n                    }\n                }\n            }\n        });\n    });\n})();\n");
+echo html_writer::script(
+    "\n(function() {\n"
+    . "    document.querySelectorAll('[data-kg-edit-toggle]').forEach(function(btn) {\n"
+    . "        btn.addEventListener('click', function() {\n"
+    . "            var targetid = btn.getAttribute('data-kg-edit-toggle');\n"
+    . "            if (!targetid) {\n"
+    . "                return;\n"
+    . "            }\n"
+    . "            var form = document.getElementById(targetid);\n"
+    . "            if (!form) {\n"
+    . "                return;\n"
+    . "            }\n"
+    . "            form.classList.toggle('kg-hidden');\n"
+    . "            if (!form.classList.contains('kg-hidden')) {\n"
+    . "                var input = form.querySelector('[data-kg-edit-input]');\n"
+    . "                if (input) {\n"
+    . "                    input.focus();\n"
+    . "                    if (input.select) {\n"
+    . "                        input.select();\n"
+    . "                    }\n"
+    . "                }\n"
+    . "            }\n"
+    . "        });\n"
+    . "    });\n"
+    . "})();\n"
+);
 
 if (has_capability('local/seminarplaner:importglobalset', $syscontext)) {
     echo html_writer::start_div('kg-admin-card');

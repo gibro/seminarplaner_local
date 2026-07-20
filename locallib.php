@@ -301,21 +301,39 @@ function local_seminarplaner_parse_json_methods(string $jsontext): array {
             'Titel' => $title,
             'Seminarphase' => local_seminarplaner_json_row_first_multi($item, ['seminarphase', 'Seminarphase']),
             'Zeitbedarf' => local_seminarplaner_json_row_first_scalar($item, ['zeitbedarf', 'Zeitbedarf']),
-            'Gruppengröße' => local_seminarplaner_json_row_first_scalar($item, ['gruppengroesse', 'Gruppengroesse', 'Gruppengröße']),
+            'Gruppengröße' => local_seminarplaner_json_row_first_scalar(
+                $item,
+                ['gruppengroesse', 'Gruppengroesse', 'Gruppengröße']
+            ),
             'Kurzbeschreibung' => local_seminarplaner_json_row_first_scalar($item, ['kurzbeschreibung', 'Kurzbeschreibung']),
-            'Autor*in / Kontakt' => local_seminarplaner_json_row_first_scalar($item, ['autor', 'autor_kontakt', 'Autor*in / Kontakt']),
-            'Lernziele (Ich-kann ...)' => local_seminarplaner_json_row_first_scalar($item, ['lernziele', 'Lernziele (Ich-kann ...)']),
+            'Autor*in / Kontakt' => local_seminarplaner_json_row_first_scalar(
+                $item,
+                ['autor', 'autor_kontakt', 'Autor*in / Kontakt']
+            ),
+            'Lernziele (Ich-kann ...)' => local_seminarplaner_json_row_first_scalar(
+                $item,
+                ['lernziele', 'Lernziele (Ich-kann ...)']
+            ),
             'Komplexitätsgrad' => local_seminarplaner_json_row_first_scalar($item, ['komplexitaet', 'Komplexitätsgrad']),
             'Vorbereitung nötig' => local_seminarplaner_json_row_first_scalar($item, ['vorbereitung', 'Vorbereitung nötig']),
-            'Raumanforderungen' => local_seminarplaner_json_row_first_multi($item, ['raum', 'raumanforderungen', 'Raumanforderungen']),
+            'Raumanforderungen' => local_seminarplaner_json_row_first_multi(
+                $item,
+                ['raum', 'raumanforderungen', 'Raumanforderungen']
+            ),
             'Sozialform' => local_seminarplaner_json_row_first_multi($item, ['sozialform', 'Sozialform']),
             'Risiken/Tipps' => local_seminarplaner_json_row_first_scalar($item, ['risiken', 'risiken_tipps', 'Risiken/Tipps']),
             'Debrief/Reflexionsfragen' => local_seminarplaner_json_row_first_scalar($item, ['debrief', 'Debrief/Reflexionsfragen']),
             'Materialien' => local_seminarplaner_json_row_first_multi($item, ['materialien', 'Materialien']),
-            'Material/Technik' => local_seminarplaner_json_row_first_scalar($item, ['materialtechnik', 'material_technik', 'Material/Technik']),
+            'Material/Technik' => local_seminarplaner_json_row_first_scalar(
+                $item,
+                ['materialtechnik', 'material_technik', 'Material/Technik']
+            ),
             'Ablauf' => local_seminarplaner_json_row_first_scalar($item, ['ablauf', 'Ablauf']),
             'Tags / Schlüsselworte' => local_seminarplaner_json_row_first_scalar($item, ['tags', 'Tags / Schlüsselworte']),
-            'Kognitive Dimension' => local_seminarplaner_json_row_first_multi($item, ['kognitive', 'kognitive_dimension', 'Kognitive Dimension']),
+            'Kognitive Dimension' => local_seminarplaner_json_row_first_multi(
+                $item,
+                ['kognitive', 'kognitive_dimension', 'Kognitive Dimension']
+            ),
         ];
         if (count($rows) > LOCAL_SEMINARPLANER_IMPORT_MAX_ROWS) {
             throw new moodle_exception('invalidparameter');
@@ -348,14 +366,23 @@ function local_seminarplaner_map_legacy_row(array $row): ?array {
         'lernziele' => local_seminarplaner_row_first($row, ['Lernziele (Ich-kann ...)', 'lernziele']),
         'komplexitaetsgrad' => local_seminarplaner_row_first($row, ['Komplexitätsgrad', 'Komplexitaetsgrad', 'komplexitaet']),
         'vorbereitung' => local_seminarplaner_row_first($row, ['Vorbereitung nötig', 'Vorbereitung noetig', 'vorbereitung']),
-        'raumanforderungen' => implode('##', local_seminarplaner_split_multi(local_seminarplaner_row_first($row, ['Raumanforderungen', 'raumanforderungen']))),
-        'sozialform' => implode('##', local_seminarplaner_split_multi(local_seminarplaner_row_first($row, ['Sozialform', 'sozialform']))),
+        'raumanforderungen' => implode('##', local_seminarplaner_split_multi(
+            local_seminarplaner_row_first($row, ['Raumanforderungen', 'raumanforderungen'])
+        )),
+        'sozialform' => implode('##', local_seminarplaner_split_multi(
+            local_seminarplaner_row_first($row, ['Sozialform', 'sozialform'])
+        )),
         'risiken_tipps' => local_seminarplaner_row_first($row, ['Risiken/Tipps', 'risiken_tipps', 'risiken']),
         'debrief' => local_seminarplaner_row_first($row, ['Debrief/Reflexionsfragen', 'debrief']),
         'material_technik' => local_seminarplaner_row_first($row, ['Material/Technik', 'material_technik', 'materialtechnik']),
         'tags' => local_seminarplaner_row_first($row, ['Tags / Schlüsselworte', 'Tags / Schluesselworte', 'tags', 'Tags']),
-        'kognitive_dimension' => implode('##', local_seminarplaner_split_multi(local_seminarplaner_row_first($row, ['Kognitive Dimension', 'kognitive_dimension', 'kognitive']))),
-        'autor_kontakt' => local_seminarplaner_row_first($row, ['Autor*in / Kontakt', 'Autor/in / Kontakt', 'autor_kontakt', 'autor']),
+        'kognitive_dimension' => implode('##', local_seminarplaner_split_multi(
+            local_seminarplaner_row_first($row, ['Kognitive Dimension', 'kognitive_dimension', 'kognitive'])
+        )),
+        'autor_kontakt' => local_seminarplaner_row_first(
+            $row,
+            ['Autor*in / Kontakt', 'Autor/in / Kontakt', 'autor_kontakt', 'autor']
+        ),
         '__materialfiles' => local_seminarplaner_split_multi(local_seminarplaner_row_first($row, ['Materialien', 'materialien'])),
         '__h5pfiles' => local_seminarplaner_parse_h5p_filenames(local_seminarplaner_row_first($row, ['H5P-Inhalt', 'h5p'])),
     ];
@@ -1267,9 +1294,21 @@ function local_seminarplaner_render_diff_method(array $item, array $decisions = 
         $out .= html_writer::tag(
             'tr',
             html_writer::tag('td', $label) .
-            html_writer::tag('td', html_writer::tag('span', $beforetext, ['class' => 'kg-diff-value kg-diff-before kg-diff-' . $status])) .
-            html_writer::tag('td', html_writer::tag('span', $aftertext, ['class' => 'kg-diff-value kg-diff-after kg-diff-' . $status])) .
-            html_writer::tag('td', html_writer::tag('span', strtoupper($status), ['class' => 'kg-diff-badge kg-diff-badge-' . $status])) .
+            html_writer::tag('td', html_writer::tag(
+                'span',
+                $beforetext,
+                ['class' => 'kg-diff-value kg-diff-before kg-diff-' . $status]
+            )) .
+            html_writer::tag('td', html_writer::tag(
+                'span',
+                $aftertext,
+                ['class' => 'kg-diff-value kg-diff-after kg-diff-' . $status]
+            )) .
+            html_writer::tag('td', html_writer::tag(
+                'span',
+                strtoupper($status),
+                ['class' => 'kg-diff-badge kg-diff-badge-' . $status]
+            )) .
             html_writer::tag('td', $decisioncontent)
         );
     }
