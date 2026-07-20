@@ -26,8 +26,6 @@ namespace local_seminarplaner\form;
 
 use moodleform;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Form for importing methods into an existing draft method set.
  */

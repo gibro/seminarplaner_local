@@ -30,8 +30,6 @@ use local_seminarplaner\local\repository\reviewer_repository;
 use local_seminarplaner\local\repository\workflow_event_repository;
 use local_seminarplaner\local\workflow\workflow_rules;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Service for Draft -> Review -> Published transitions.
  */

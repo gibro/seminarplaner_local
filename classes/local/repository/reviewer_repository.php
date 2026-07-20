@@ -24,8 +24,6 @@
 
 namespace local_seminarplaner\local\repository;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Repository for reviewer assignments per method set.
  */

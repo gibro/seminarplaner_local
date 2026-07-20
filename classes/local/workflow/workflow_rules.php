@@ -24,8 +24,6 @@
 
 namespace local_seminarplaner\local\workflow;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Workflow transition policy for global method sets.
  */

@@ -36,8 +36,6 @@ use invalid_parameter_exception;
 use local_seminarplaner\local\repository\methodset_repository;
 use local_seminarplaner\local\service\workflow_service;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * External API for global method set governance.
  */

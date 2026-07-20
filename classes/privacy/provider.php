@@ -24,8 +24,6 @@
 
 namespace local_seminarplaner\privacy;
 
-defined('MOODLE_INTERNAL') || die();
-
 use context;
 use context_system;
 use core_privacy\local\metadata\collection;
