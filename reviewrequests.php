@@ -300,6 +300,20 @@ function local_seminarplaner_build_reviewdiff_payload(
             'type' => 'submit',
             'class' => 'kg-btn kg-btn-primary',
         ]);
+        // Die Entscheidungen wirklich einpflegen: abgelehnte Zeilen fallen auf den
+        // vorherigen Stand zurueck, angenommene bleiben. Danach traegt die Version
+        // genau das, was freigegeben wurde - vorher war das ein Alles-oder-nichts.
+        // Eigener Feldname statt eines zweiten "action": das Formular traegt bereits
+        // ein verstecktes action-Feld, zwei gleichnamige Felder waeren Gluecksache.
+        $modalcontent .= html_writer::tag('button', get_string('applyreviewdecisions', 'local_seminarplaner'), [
+            'type' => 'submit',
+            'class' => 'kg-btn',
+            'name' => 'applynow',
+            'value' => '1',
+            'onclick' => 'return confirm(' . json_encode(
+                get_string('applyreviewdecisionsconfirm', 'local_seminarplaner')
+            ) . ');',
+        ]);
         $modalcontent .= html_writer::tag('button', get_string('closebuttontitle', 'moodle'), [
             'type' => 'button',
             'class' => 'kg-modal-close',
@@ -514,6 +528,15 @@ function local_seminarplaner_render_set_table(
                 );
             }
             $row[] = $reviewercell;
+        }
+
+        // Einheiten pflegen geht unabhaengig vom Review: der Diff-Weg hilft nur, solange
+        // etwas eingereicht wurde. Ohne Einreichung gab es bisher gar keinen Weg, eine
+        // Einheit im globalen Set zu korrigieren.
+        if (!empty($setreviewrights[$setid]) && !empty($isassignedreviewer[$setid])) {
+            $actions[] = html_writer::link(new moodle_url('/local/seminarplaner/editunits.php', [
+                'methodsetid' => $setid,
+            ]), get_string('editunitslink', 'local_seminarplaner'), ['class' => 'kg-action-link']);
         }
 
         $allowdecisions = ((string)$set->status === 'review')
@@ -750,6 +773,25 @@ if ($action === 'savereviewdecisions' && confirm_sesskey()) {
         }
 
         $message = get_string('reviewdecisionssaved', 'local_seminarplaner');
+
+        // Zweiter Knopf: die eben gespeicherten Entscheidungen auch einpflegen.
+        if (optional_param('applynow', 0, PARAM_BOOL)) {
+            $applied = local_seminarplaner_apply_review_decisions(
+                (int)$methodsetid,
+                (int)$versionid,
+                (int)$USER->id
+            );
+            $message .= ' ' . get_string('applyreviewdecisionsok', 'local_seminarplaner', (object)[
+                'fields' => (int)$applied['fields'],
+                'materials' => (int)$applied['materials'],
+                'removed' => (int)$applied['units_removed'],
+                'restored' => (int)$applied['units_restored'],
+            ]);
+            if ((int)$applied['pending'] > 0) {
+                $message .= ' ' . get_string('applyreviewdecisionspending', 'local_seminarplaner',
+                    (int)$applied['pending']);
+            }
+        }
     } catch (Throwable $e) {
         $message = $e->getMessage();
         $error = true;

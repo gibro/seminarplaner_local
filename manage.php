@@ -175,6 +175,12 @@ if ($action === 'exportmoddata' && confirm_sesskey()) {
 
 if ($action === 'delete' && confirm_sesskey()) {
     require_capability('local/seminarplaner:archiveglobalset', $syscontext);
+    // Der eigentliche Riegel: Löschen bleibt der Administration vorbehalten. Der
+    // ausgeblendete Knopf in der Tabelle ist nur Höflichkeit - wer die URL direkt
+    // aufruft, muss hier scheitern.
+    if (!is_siteadmin()) {
+        throw new moodle_exception('deletedeniedhint', 'local_seminarplaner');
+    }
     $methodsetid = required_param('methodsetid', PARAM_INT);
 
     try {
@@ -517,6 +523,10 @@ max-height:88vh;overflow:auto;padding:16px}
 background:transparent;color:#646464;cursor:pointer}
 .kg-name-edit-btn:hover{border:0;background:transparent;color:#2F80AB}
 .kg-name-edit-btn .icon{margin:0}
+/* Gleiche Optik wie Bearbeiten, beim Ueberfahren aber warnend statt einladend. */
+.kg-delete-btn{gap:4px}
+.kg-delete-btn span{font-size:13px}
+.kg-delete-btn:hover,.kg-delete-btn:focus{color:#E3051B}
 .kg-inline-rename .kg-btn{margin-top:0;margin-bottom:0}
 .kg-inline-edit{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;padding:10px;
 border:1px solid #d1d5db;border-radius:8px;background:#f9fafb}
@@ -637,6 +647,14 @@ foreach ($methodsets as $set) {
     $canedit = has_capability('local/seminarplaner:editdraftset', $syscontext) ||
         has_capability('local/seminarplaner:archiveglobalset', $syscontext);
 
+    // Löschen ist der Administration vorbehalten. Konzeptverantwortliche sehen den
+    // Knopf, lösen damit aber nur den Hinweis aus, sich an die Administration zu wenden.
+    $candelete = is_siteadmin();
+    $canseedelete = !$candelete && (
+        has_capability('local/seminarplaner:reviewset', $syscontext)
+        || has_capability('local/seminarplaner:archiveglobalset', $syscontext)
+    );
+
     // Bearbeiten-Stift ganz rechts (in den Aktionen): klappt ein Formular auf,
     // in dem Name UND Typ gemeinsam geändert werden.
     $editform = '';
@@ -691,20 +709,33 @@ foreach ($methodsets as $set) {
         );
     }
 
-    // Löschen - Bezeichnung je nach Objektart.
-    if (has_capability('local/seminarplaner:archiveglobalset', $syscontext)) {
-        $deletelabel = $currenttype === 'seminarkonzept'
-            ? get_string('deleteseminarkonzept', 'local_seminarplaner')
-            : get_string('deletemethodset', 'local_seminarplaner');
-        $actions[] = html_writer::link(new moodle_url('/local/seminarplaner/manage.php', [
-            'action' => 'delete',
-            'sesskey' => sesskey(),
-            'methodsetid' => $set->id,
-        ]), $deletelabel, [
-            'class' => 'kg-action-link',
-            'onclick' => "return confirm("
-                . json_encode(get_string('deleteconfirm', 'local_seminarplaner', $set->displayname)) . ");",
-        ]);
+    // Löschen: gleiche Optik wie der Bearbeiten-Stift. Löschen DARF nur die
+    // Administration - Konzeptverantwortliche sehen den Knopf trotzdem, damit sie
+    // wissen, dass es den Weg gibt, und bekommen beim Klick den Hinweis, an wen sie
+    // sich wenden. Die eigentliche Sperre sitzt im Handler oben, nicht hier.
+    if ($candelete || $canseedelete) {
+        $deleteattrs = [
+            'type' => 'button',
+            'class' => 'kg-name-edit-btn kg-delete-btn',
+            'aria-label' => get_string('delete') . ': ' . s($set->displayname),
+        ];
+        if ($candelete) {
+            $deleteattrs['data-kg-delete-url'] = (new moodle_url('/local/seminarplaner/manage.php', [
+                'action' => 'delete',
+                'sesskey' => sesskey(),
+                'methodsetid' => $set->id,
+            ]))->out(false);
+            $deleteattrs['data-kg-delete-confirm'] =
+                get_string('deleteconfirm', 'local_seminarplaner', $set->displayname);
+        } else {
+            $deleteattrs['data-kg-delete-denied'] = get_string('deletedeniedhint', 'local_seminarplaner');
+        }
+        $actions[] = html_writer::tag(
+            'button',
+            $OUTPUT->pix_icon('t/delete', get_string('delete'))
+                . html_writer::tag('span', get_string('delete')),
+            $deleteattrs
+        );
     }
 
     $shortnamecell = html_writer::start_div('kg-shortname-cell');
@@ -747,6 +778,18 @@ echo html_writer::script(
     . "                    }\n"
     . "                }\n"
     . "            }\n"
+    . "        });\n"
+    . "    });\n"
+    . "    document.querySelectorAll('[data-kg-delete-url]').forEach(function(btn) {\n"
+    . "        btn.addEventListener('click', function() {\n"
+    . "            if (window.confirm(btn.getAttribute('data-kg-delete-confirm') || '')) {\n"
+    . "                window.location.href = btn.getAttribute('data-kg-delete-url');\n"
+    . "            }\n"
+    . "        });\n"
+    . "    });\n"
+    . "    document.querySelectorAll('[data-kg-delete-denied]').forEach(function(btn) {\n"
+    . "        btn.addEventListener('click', function() {\n"
+    . "            window.alert(btn.getAttribute('data-kg-delete-denied') || '');\n"
     . "        });\n"
     . "    });\n"
     . "})();\n"
