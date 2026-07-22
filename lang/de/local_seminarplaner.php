@@ -68,6 +68,7 @@ $string['targetdraftset'] = 'Ziel-Eintrag (Entwurf)';
 $string['importfile'] = 'Importdatei';
 $string['importok'] = '{$a} Seminareinheiten erfolgreich importiert.';
 $string['importupsertok'] = 'Import abgeschlossen: {$a->created} Seminareinheiten neu angelegt, {$a->updated} aktualisiert, {$a->files} Dateien übernommen.';
+$string['importmissingfiles'] = 'ACHTUNG: {$a->count} in der Datei genannte Anhänge waren nicht enthalten und fehlen daher: {$a->names}. Bei einer ZIP-Datei müssen sie im Ordner „files/" liegen; eine CSV kann keine Anhänge transportieren.';
 $string['importerrorfiletype'] = 'Bitte eine CSV- oder ZIP-Datei hochladen.';
 $string['importerrorzipsupport'] = 'ZIP-Import wird auf diesem Server nicht unterstützt.';
 $string['importerrorzipopen'] = 'ZIP-Datei konnte nicht geöffnet werden.';

@@ -66,6 +66,7 @@ $string['targetdraftset'] = 'Target entry (draft)';
 $string['importfile'] = 'Import file';
 $string['importok'] = '{$a} methods imported successfully.';
 $string['importupsertok'] = 'Import finished: {$a->created} seminar units added, {$a->updated} updated, {$a->files} files stored.';
+$string['importmissingfiles'] = 'NOTE: {$a->count} attachments named in the file were not included and are therefore missing: {$a->names}. In a ZIP they must sit in the "files/" folder; a CSV cannot carry attachments.';
 $string['importerrorfiletype'] = 'Please upload a CSV or ZIP file.';
 $string['importerrorzipsupport'] = 'ZIP import is not supported on this server.';
 $string['importerrorzipopen'] = 'Could not open ZIP file.';

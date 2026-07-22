@@ -190,6 +190,29 @@ final class import_json_files_test extends advanced_testcase {
         $this->assertSame([$name], $this->stored_filenames('Fuenf Briefumschlaege'));
     }
 
+    public function test_attachment_named_but_not_delivered_is_reported(): void {
+        // A row naming a file the upload does not carry: the attachment silently
+        // disappeared before, so the import must now say which one is missing.
+        $json = $this->export_json('Fuenf Briefumschlaege', [
+            ['name' => 'Fehlt.pdf'],
+            $this->embedded_file('Vorhanden.pdf', 'inhalt'),
+        ]);
+
+        $result = $this->import_json($json, 'upsert');
+
+        $this->assertSame(1, $result['files']);
+        $this->assertSame(['Fehlt.pdf'], $result['missingfiles']);
+    }
+
+    public function test_no_missing_report_when_everything_arrived(): void {
+        $result = $this->import_json(
+            $this->export_json('Fuenf Briefumschlaege', [$this->embedded_file('Da.pdf', 'inhalt')]),
+            'upsert'
+        );
+
+        $this->assertSame([], $result['missingfiles']);
+    }
+
     public function test_entry_without_content_is_skipped_without_breaking_the_import(): void {
         $json = $this->export_json('Fuenf Briefumschlaege', [
             ['name' => 'NurName.pdf'],

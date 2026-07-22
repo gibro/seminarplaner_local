@@ -663,7 +663,7 @@ function local_seminarplaner_next_file_itemid(string $filearea): int {
  * @param array $filenames Requested filenames from CSV.
  * @param array $zipfiles ZIP basename=>content map.
  * @param bool $reuseexisting Add to the method's existing file area instead of starting a new one.
- * @return int Number of files stored.
+ * @return array{stored: int, missing: string[]} Stored count and filenames the upload did not carry.
  */
 function local_seminarplaner_store_import_files(
     int $methodid,
@@ -672,12 +672,12 @@ function local_seminarplaner_store_import_files(
     array $filenames,
     array $zipfiles,
     bool $reuseexisting = false
-): int {
+): array {
     global $DB;
 
     $filenames = array_values(array_unique(array_filter(array_map('trim', $filenames))));
     if (!$filenames) {
-        return 0;
+        return ['stored' => 0, 'missing' => []];
     }
     $kind = $kind === 'h5p' ? 'h5p' : 'material';
     $filearea = $kind === 'h5p' ? 'method_h5p' : 'method_material';
@@ -687,6 +687,7 @@ function local_seminarplaner_store_import_files(
     // When updating an existing method, keep its attachments and add to the same area.
     $itemid = 0;
     $haslink = false;
+    $missing = [];
     if ($reuseexisting) {
         $links = $DB->get_records(
             'local_kgen_method_file',
@@ -719,6 +720,9 @@ function local_seminarplaner_store_import_files(
             $lookup = rawurldecode($filename);
         }
         if (!array_key_exists($lookup, $zipfiles)) {
+            // The row names a file the upload does not carry. Silently skipping it made
+            // the import report success while the attachment never arrived.
+            $missing[] = $filename;
             continue;
         }
         $content = (string)$zipfiles[$lookup];
@@ -749,7 +753,7 @@ function local_seminarplaner_store_import_files(
         ]);
     }
 
-    return $storedcount;
+    return ['stored' => $storedcount, 'missing' => $missing];
 }
 
 /**
@@ -766,7 +770,7 @@ function local_seminarplaner_store_import_files(
  * @param array $records Mapped records.
  * @param array $zipfiles ZIP basename=>content map.
  * @param string $mode insert|upsert.
- * @return array Counters: created, updated, files.
+ * @return array Counters: created, updated, files, plus missingfiles (names not in the upload).
  */
 function local_seminarplaner_import_records_to_set(
     int $methodsetid,
@@ -796,7 +800,7 @@ function local_seminarplaner_import_records_to_set(
 
     $transaction = $DB->start_delegated_transaction();
     $now = time();
-    $result = ['created' => 0, 'updated' => 0, 'files' => 0];
+    $result = ['created' => 0, 'updated' => 0, 'files' => 0, 'missingfiles' => []];
     foreach ($records as $rec) {
         $materialfiles = [];
         if (!empty($rec['__materialfiles']) && is_array($rec['__materialfiles'])) {
@@ -838,8 +842,10 @@ function local_seminarplaner_import_records_to_set(
             }
             $result['created']++;
         }
+        // Only report missing attachments when the upload carried files at all - a plain
+        // CSV never carries any, and warning about that on every row would be noise.
         if (!empty($zipfiles)) {
-            $result['files'] += local_seminarplaner_store_import_files(
+            $filesresult = local_seminarplaner_store_import_files(
                 $methodid,
                 'material',
                 $userid,
@@ -847,9 +853,14 @@ function local_seminarplaner_import_records_to_set(
                 $zipfiles,
                 $existingid > 0
             );
+            $result['files'] += (int)$filesresult['stored'];
+            foreach ($filesresult['missing'] as $missingname) {
+                $result['missingfiles'][$missingname] = $missingname;
+            }
         }
     }
     $transaction->allow_commit();
+    $result['missingfiles'] = array_values($result['missingfiles']);
     return $result;
 }
 
