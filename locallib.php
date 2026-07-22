@@ -267,6 +267,67 @@ function local_seminarplaner_json_row_first_multi(array $row, array $keys): stri
 }
 
 /**
+ * Collect attachments that a JSON export carries inline.
+ *
+ * The activity export embeds each attachment as base64 next to its filename, so a JSON
+ * file is self-contained. Only the filenames were read before, which silently dropped
+ * every attachment on import. Returns the same basename => content map the ZIP path
+ * produces, so both formats feed local_seminarplaner_store_import_files() alike.
+ *
+ * @param string $jsontext JSON source.
+ * @return array<string, string> Basename => raw file content.
+ */
+function local_seminarplaner_parse_json_embedded_files(string $jsontext): array {
+    $decoded = json_decode($jsontext, true);
+    if (!is_array($decoded)) {
+        return [];
+    }
+    if (array_key_exists('methods', $decoded)) {
+        $decoded = $decoded['methods'];
+    }
+    if (!is_array($decoded)) {
+        return [];
+    }
+
+    $files = [];
+    foreach ($decoded as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        foreach (['materialien', 'Materialien'] as $key) {
+            if (!array_key_exists($key, $item) || !is_array($item[$key])) {
+                continue;
+            }
+            foreach ($item[$key] as $entry) {
+                if (is_object($entry)) {
+                    $entry = (array)$entry;
+                }
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $filename = clean_param(trim((string)($entry['name'] ?? $entry['filename'] ?? '')), PARAM_FILE);
+                $base64 = (string)($entry['contentbase64'] ?? '');
+                if ($filename === '' || $filename === '.' || $base64 === '') {
+                    continue;
+                }
+                if (strlen($base64) > (LOCAL_SEMINARPLANER_IMPORT_MAX_BYTES * 2)) {
+                    continue;
+                }
+                $content = base64_decode($base64, true);
+                if ($content === false || $content === ''
+                        || strlen($content) > LOCAL_SEMINARPLANER_IMPORT_MAX_BYTES) {
+                    continue;
+                }
+                $files[$filename] = $content;
+                $files[rawurldecode($filename)] = $content;
+            }
+        }
+    }
+
+    return $files;
+}
+
+/**
  * Parse JSON export payload from mod/seminarplaner into legacy row format.
  *
  * @param string $jsontext JSON source.
@@ -471,7 +532,7 @@ function local_seminarplaner_extract_rows_from_upload(string $filepath, string $
         $jsoncontent = (string)file_get_contents($filepath);
         return [
             'rows' => local_seminarplaner_parse_json_methods($jsoncontent),
-            'files' => [],
+            'files' => local_seminarplaner_parse_json_embedded_files($jsoncontent),
         ];
     }
     if (substr($name, -4) !== '.zip') {
