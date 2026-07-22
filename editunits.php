@@ -81,7 +81,11 @@ if ($action === 'saveunit' && confirm_sesskey()) {
             if ($field === 'materialien') {
                 continue;
             }
-            $values[$field] = optional_param($field, '', PARAM_TEXT);
+            // PARAM_CLEANHTML, NICHT PARAM_TEXT: Die Felder tragen Formatierung aus dem
+            // Import (<p>, Listen). PARAM_TEXT wuerde sie beim ersten Speichern
+            // stillschweigend herausreissen - auch aus Feldern, die gar nicht angefasst
+            // wurden. CLEANHTML entfernt nur Gefaehrliches und laesst die Auszeichnung stehen.
+            $values[$field] = optional_param($field, '', PARAM_CLEANHTML);
         }
 
         $changed = local_seminarplaner_update_global_unit((int)$methodid, $values, (int)$USER->id);
