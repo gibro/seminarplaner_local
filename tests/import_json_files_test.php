@@ -120,8 +120,14 @@ final class import_json_files_test extends advanced_testcase {
     private function stored_filenames(string $title): array {
         global $DB;
 
-        $method = $DB->get_record('local_kgen_method',
-            ['methodsetid' => $this->methodsetid, 'title' => $title], '*', IGNORE_MULTIPLE);
+        // title is a TEXT column, which Moodle refuses to compare in SQL - filter in PHP.
+        $method = null;
+        foreach ($DB->get_records('local_kgen_method', ['methodsetid' => $this->methodsetid], 'id ASC') as $row) {
+            if ((string)$row->title === $title) {
+                $method = $row;
+                break;
+            }
+        }
         if (!$method) {
             return [];
         }
