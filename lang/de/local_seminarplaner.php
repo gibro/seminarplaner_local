@@ -79,6 +79,7 @@ $string['importerrornomethods'] = 'Keine importierbaren Seminareinheiten in der 
 $string['deletemethodset'] = 'Methoden-Sammlung löschen';
 $string['deleteseminarkonzept'] = 'Seminarkonzept löschen';
 $string['deleteconfirm'] = '„{$a}" und alle enthaltenen Daten wirklich löschen?';
+$string['deletedeniedhint'] = 'Globale Methoden-Sammlungen und Seminarkonzepte dürfen nur von der Administration gelöscht werden. Bitte wende dich an deine Moodle-Administration, wenn dieser Eintrag entfernt werden soll.';
 $string['deleteok'] = '„{$a}" wurde gelöscht.';
 $string['renamemethodset'] = 'Umbenennen';
 $string['renameerrornoname'] = 'Bitte einen Namen eingeben.';

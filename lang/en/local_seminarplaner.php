@@ -77,6 +77,7 @@ $string['importerrornomethods'] = 'No importable methods found in the file.';
 $string['deletemethodset'] = 'Delete method collection';
 $string['deleteseminarkonzept'] = 'Delete seminar concept';
 $string['deleteconfirm'] = 'Really delete "{$a}" and all related data?';
+$string['deletedeniedhint'] = 'Global method collections and seminar concepts may only be deleted by an administrator. Please contact your Moodle administration if this entry should be removed.';
 $string['deleteok'] = '"{$a}" was deleted.';
 $string['renamemethodset'] = 'Rename';
 $string['renameerrornoname'] = 'Please provide a name.';
