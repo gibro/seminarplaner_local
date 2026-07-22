@@ -1654,3 +1654,66 @@ function local_seminarplaner_apply_review_decisions(int $methodsetid, int $versi
 
     return $result;
 }
+
+/**
+ * Update the text fields of one seminar unit inside a global set.
+ *
+ * Writes straight into the version the set currently points at - concept owners maintain
+ * their own collection, and a full new version per typo would bloat the history. What did
+ * change is recorded in the workflow log, so the edit stays traceable. Activities pick the
+ * change up on their next "apply pending updates" because the sync compares field hashes.
+ *
+ * @param int $methodid Method row id.
+ * @param array $values New values, keyed by column name.
+ * @param int $actorid Acting user id.
+ * @return string[] Labels of the fields that actually changed.
+ */
+function local_seminarplaner_update_global_unit(int $methodid, array $values, int $actorid): array {
+    global $DB;
+
+    $method = $DB->get_record('local_kgen_method', ['id' => $methodid], '*', MUST_EXIST);
+    $labels = local_seminarplaner_review_field_labels();
+
+    $update = ['id' => $methodid];
+    $changed = [];
+    foreach ($labels as $field => $label) {
+        // 'materialien' is not a column - attachments are managed elsewhere.
+        if ($field === 'materialien' || !array_key_exists($field, $values)) {
+            continue;
+        }
+        $new = trim((string)$values[$field]);
+        if ($field === 'title' && $new === '') {
+            throw new moodle_exception('editunittitlerequired', 'local_seminarplaner');
+        }
+        if ($new === trim((string)($method->$field ?? ''))) {
+            continue;
+        }
+        $update[$field] = $new;
+        $changed[] = $label;
+    }
+
+    if (!$changed) {
+        return [];
+    }
+
+    $update['timemodified'] = time();
+    $update['modifiedby'] = $actorid;
+    $DB->update_record('local_kgen_method', (object)$update);
+
+    // Traceability: the set status does not change, the entry documents the edit itself.
+    $set = $DB->get_record('local_kgen_methodset', ['id' => (int)$method->methodsetid], 'id,status', IGNORE_MISSING);
+    $status = (string)($set->status ?? 'published');
+    (new \local_seminarplaner\local\repository\workflow_event_repository())->create(
+        (int)$method->methodsetid,
+        (int)$method->methodsetversionid,
+        $status,
+        $status,
+        get_string('editunitlogged', 'local_seminarplaner', (object)[
+            'title' => (string)$method->title,
+            'fields' => implode(', ', $changed),
+        ]),
+        $actorid
+    );
+
+    return $changed;
+}

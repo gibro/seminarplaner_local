@@ -530,6 +530,15 @@ function local_seminarplaner_render_set_table(
             $row[] = $reviewercell;
         }
 
+        // Einheiten pflegen geht unabhaengig vom Review: der Diff-Weg hilft nur, solange
+        // etwas eingereicht wurde. Ohne Einreichung gab es bisher gar keinen Weg, eine
+        // Einheit im globalen Set zu korrigieren.
+        if (!empty($setreviewrights[$setid]) && !empty($isassignedreviewer[$setid])) {
+            $actions[] = html_writer::link(new moodle_url('/local/seminarplaner/editunits.php', [
+                'methodsetid' => $setid,
+            ]), get_string('editunitslink', 'local_seminarplaner'), ['class' => 'kg-action-link']);
+        }
+
         $allowdecisions = ((string)$set->status === 'review')
             && !empty($setreviewrights[$setid])
             && !empty($isassignedreviewer[$setid]);
