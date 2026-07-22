@@ -285,6 +285,14 @@ if ($action === 'importmoddata_newset' && confirm_sesskey()) {
             'count' => (int)$importresult['created'],
             'id' => $methodsetid,
         ]);
+        $missingfiles = (array)($importresult['missingfiles'] ?? []);
+        if ($missingfiles) {
+            $message .= ' ' . get_string('importmissingfiles', 'local_seminarplaner', (object)[
+                'count' => count($missingfiles),
+                'names' => implode(', ', array_map('s', $missingfiles)),
+            ]);
+            $error = true;
+        }
     } catch (Throwable $e) {
         $message = $e->getMessage();
         $error = true;
@@ -359,6 +367,15 @@ if ($action === 'importmoddata_existingset' && confirm_sesskey()) {
             'updated' => (int)$importresult['updated'],
             'files' => (int)$importresult['files'],
         ]);
+        // Named but not delivered attachments used to vanish without a word.
+        $missingfiles = (array)($importresult['missingfiles'] ?? []);
+        if ($missingfiles) {
+            $message .= ' ' . get_string('importmissingfiles', 'local_seminarplaner', (object)[
+                'count' => count($missingfiles),
+                'names' => implode(', ', array_map('s', $missingfiles)),
+            ]);
+            $error = true;
+        }
     } catch (Throwable $e) {
         $message = $e->getMessage();
         $error = true;
