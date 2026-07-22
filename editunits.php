@@ -184,13 +184,31 @@ if ($editing) {
 echo $OUTPUT->header();
 echo $OUTPUT->heading(format_string((string)$set->displayname));
 
+// Wie auf den anderen Seiten des Plugins bringt die Seite ihr CSS selbst mit -
+// local_seminarplaner hat keine styles.css.
+echo html_writer::tag('style', '
+.kg-row{margin:10px 0}
+.kg-btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-height:36px;padding:8px 12px;border:1px solid #E3051B;border-radius:8px;
+  background:#E3051B;color:#fff;text-decoration:none;cursor:pointer;
+  margin-top:8px;margin-bottom:8px
+}
+.kg-btn:hover,.kg-btn:focus{
+  background:#882A30;border-color:#882A30;color:#fff;text-decoration:none
+}
+.kg-btn-plain{background:#fff;color:#20242b;border-color:#c5ccd3}
+.kg-btn-plain:hover,.kg-btn-plain:focus{background:#eef1f4;color:#20242b;border-color:#98a0aa}
+');
+
 if ($message !== '') {
     echo $OUTPUT->notification($message, $error ? 'notifyproblem' : 'notifysuccess');
 }
 
 if ($mform) {
     echo html_writer::div(
-        html_writer::link($pageurl, get_string('editunitsbacktolist', 'local_seminarplaner')),
+        html_writer::link($pageurl, get_string('editunitsbacktolist', 'local_seminarplaner'),
+            ['class' => 'kg-btn kg-btn-plain']),
         'kg-row'
     );
     $mform->display();
@@ -198,7 +216,7 @@ if ($mform) {
     echo html_writer::tag('p', get_string('editunitsintro', 'local_seminarplaner'));
     echo html_writer::div(
         html_writer::link(new moodle_url('/local/seminarplaner/reviewrequests.php'),
-            get_string('backtoreviewrequests', 'local_seminarplaner')),
+            get_string('backtoreviewrequests', 'local_seminarplaner'), ['class' => 'kg-btn']),
         'kg-row'
     );
     echo html_writer::tag('h4', get_string('editunitscount', 'local_seminarplaner', count($units)));
