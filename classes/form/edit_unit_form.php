@@ -46,7 +46,7 @@ class edit_unit_form extends moodleform {
      * @return string[]
      */
     public static function rich_text_fields(): array {
-        return ['lernziele', 'kurzbeschreibung', 'ablauf', 'risiken_tipps', 'debrief'];
+        return ['lernziele', 'kurzbeschreibung', 'ablauf', 'risiken_tipps', 'debrief', 'material_technik'];
     }
 
     /**
@@ -183,9 +183,11 @@ class edit_unit_form extends moodleform {
                 'context' => $context instanceof context ? $context : null,
             ]);
 
-        $mform->addElement('text', 'material_technik',
-            get_string('editunitfield_materialtechnik', 'local_seminarplaner'), ['size' => 60]);
-        $mform->setType('material_technik', PARAM_TEXT);
+        // Im Aktivitaets-Formular ist das eine Textarea, und die Daten tragen Listen -
+        // ein einzeiliges Textfeld haette die Auszeichnung beim Speichern zerrissen.
+        $mform->addElement('editor', 'material_technik_editor',
+            get_string('editunitfield_materialtechnik', 'local_seminarplaner'), null, $editoroptions);
+        $mform->setType('material_technik_editor', PARAM_RAW);
 
         $this->add_action_buttons(true, get_string('editunitsave', 'local_seminarplaner'));
     }
