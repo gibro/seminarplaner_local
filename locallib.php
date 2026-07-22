@@ -1717,3 +1717,83 @@ function local_seminarplaner_update_global_unit(int $methodid, array $values, in
 
     return $changed;
 }
+
+/**
+ * Sync a unit's material attachments from a draft file area.
+ *
+ * The form hands over a draft item id; its contents become the unit's attachments. Files
+ * the user removed in the file manager disappear here too.
+ *
+ * @param int $methodid Method row id.
+ * @param int $draftitemid Draft area holding the desired state.
+ * @param int $actorid Acting user id.
+ * @return array{added: string[], removed: string[]} Filenames that came and went.
+ */
+function local_seminarplaner_sync_unit_materials_from_draft(int $methodid, int $draftitemid, int $actorid): array {
+    global $DB;
+
+    $fs = get_file_storage();
+    $contextid = (int)context_system::instance()->id;
+    $usercontext = context_user::instance($actorid);
+
+    $wanted = [];
+    foreach ($fs->get_area_files($usercontext->id, 'user', 'draft', $draftitemid, 'filename', false) as $file) {
+        $wanted[(string)$file->get_filename()] = $file;
+    }
+
+    $link = $DB->get_record('local_kgen_method_file', ['methodid' => $methodid, 'kind' => 'material'],
+        '*', IGNORE_MULTIPLE);
+    $itemid = $link ? (int)$link->fileitemid : 0;
+
+    $existing = [];
+    if ($itemid > 0) {
+        foreach ($fs->get_area_files($contextid, 'local_seminarplaner', 'method_material', $itemid,
+            'filename', false) as $file) {
+            $existing[(string)$file->get_filename()] = $file;
+        }
+    }
+
+    $added = [];
+    $removed = [];
+
+    foreach ($existing as $name => $file) {
+        if (!isset($wanted[$name])) {
+            $file->delete();
+            $removed[] = $name;
+        }
+    }
+
+    $newnames = array_diff(array_keys($wanted), array_keys($existing));
+    if ($newnames) {
+        if ($itemid <= 0) {
+            $itemid = local_seminarplaner_next_file_itemid('method_material');
+        }
+        foreach ($newnames as $name) {
+            $fs->create_file_from_storedfile([
+                'contextid' => $contextid,
+                'component' => 'local_seminarplaner',
+                'filearea' => 'method_material',
+                'itemid' => $itemid,
+                'filepath' => '/',
+                'filename' => $name,
+                'userid' => $actorid,
+            ], $wanted[$name]);
+            $added[] = $name;
+        }
+        if (!$link) {
+            $DB->insert_record('local_kgen_method_file', (object)[
+                'methodid' => $methodid,
+                'kind' => 'material',
+                'fileitemid' => $itemid,
+                'timecreated' => time(),
+            ]);
+        }
+    }
+
+    // A link pointing at an empty area only creates confusion later on.
+    if ($link && !$wanted) {
+        $DB->delete_records('local_kgen_method_file', ['methodid' => $methodid, 'kind' => 'material']);
+    }
+
+    return ['added' => $added, 'removed' => $removed];
+}

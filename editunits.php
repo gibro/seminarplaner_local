@@ -68,36 +68,7 @@ $message = '';
 $error = false;
 
 $versionid = (int)($set->currentversion ?? 0);
-
-if ($action === 'saveunit' && confirm_sesskey()) {
-    try {
-        $target = $DB->get_record('local_kgen_method', ['id' => $methodid], '*', MUST_EXIST);
-        if ((int)$target->methodsetid !== $methodsetid) {
-            throw new moodle_exception('invalidparameter');
-        }
-
-        $values = [];
-        foreach (array_keys(local_seminarplaner_review_field_labels()) as $field) {
-            if ($field === 'materialien') {
-                continue;
-            }
-            // PARAM_CLEANHTML, NICHT PARAM_TEXT: Die Felder tragen Formatierung aus dem
-            // Import (<p>, Listen). PARAM_TEXT wuerde sie beim ersten Speichern
-            // stillschweigend herausreissen - auch aus Feldern, die gar nicht angefasst
-            // wurden. CLEANHTML entfernt nur Gefaehrliches und laesst die Auszeichnung stehen.
-            $values[$field] = optional_param($field, '', PARAM_CLEANHTML);
-        }
-
-        $changed = local_seminarplaner_update_global_unit((int)$methodid, $values, (int)$USER->id);
-        $message = $changed
-            ? get_string('editunitsaved', 'local_seminarplaner', implode(', ', $changed))
-            : get_string('editunitunchanged', 'local_seminarplaner');
-        $methodid = 0;
-    } catch (Throwable $e) {
-        $message = $e->getMessage();
-        $error = true;
-    }
-}
+$maxbytes = get_user_max_upload_file_size($syscontext, $CFG->maxbytes);
 
 $units = [];
 if ($versionid > 0) {
@@ -108,100 +79,143 @@ if (!$units) {
     $units = $DB->get_records('local_kgen_method', ['methodsetid' => $methodsetid], 'id ASC');
 }
 
+$editing = ($methodid > 0 && isset($units[$methodid])) ? $units[$methodid] : null;
+
+$mform = null;
+if ($editing) {
+    $mform = new \local_seminarplaner\form\edit_unit_form($pageurl->out(false), [
+        'maxbytes' => $maxbytes,
+        'context' => $syscontext,
+    ]);
+
+    // Vorhandene Anhaenge in den Entwurfsbereich des Dateimanagers spiegeln.
+    $draftitemid = file_get_submitted_draft_itemid('materialien');
+    if (!$mform->is_submitted()) {
+        $link = $DB->get_record('local_kgen_method_file',
+            ['methodid' => (int)$editing->id, 'kind' => 'material'], '*', IGNORE_MULTIPLE);
+        $fs = get_file_storage();
+        $usercontext = context_user::instance((int)$USER->id);
+        file_prepare_draft_area($draftitemid, null, null, null, null);
+        if ($link) {
+            foreach ($fs->get_area_files((int)$syscontext->id, 'local_seminarplaner', 'method_material',
+                (int)$link->fileitemid, 'filename', false) as $file) {
+                $fs->create_file_from_storedfile([
+                    'contextid' => $usercontext->id,
+                    'component' => 'user',
+                    'filearea' => 'draft',
+                    'itemid' => $draftitemid,
+                    'filepath' => '/',
+                    'filename' => (string)$file->get_filename(),
+                ], $file);
+            }
+        }
+    }
+
+    $richfields = \local_seminarplaner\form\edit_unit_form::rich_text_fields();
+    $multifields = \local_seminarplaner\form\edit_unit_form::multi_fields();
+
+    $data = (object)[
+        'methodsetid' => $methodsetid,
+        'methodid' => (int)$editing->id,
+        'action' => 'saveunit',
+        'title' => (string)$editing->title,
+        'tags' => (string)$editing->tags,
+        'autor_kontakt' => (string)$editing->autor_kontakt,
+        'material_technik' => (string)$editing->material_technik,
+        'zeitbedarf' => (string)$editing->zeitbedarf,
+        'gruppengroesse' => (string)$editing->gruppengroesse,
+        'vorbereitung' => (string)$editing->vorbereitung,
+        'materialien' => $draftitemid,
+    ];
+    foreach ($multifields as $field) {
+        $data->$field = array_values(array_filter(explode('##', (string)($editing->$field ?? ''))));
+    }
+    foreach ($richfields as $field) {
+        $data->{$field . '_editor'} = ['text' => (string)($editing->$field ?? ''), 'format' => FORMAT_HTML];
+    }
+    $mform->set_data($data);
+
+    if ($mform->is_cancelled()) {
+        redirect($pageurl);
+    } else if ($submitted = $mform->get_data()) {
+        try {
+            $values = [
+                'title' => (string)$submitted->title,
+                'tags' => (string)$submitted->tags,
+                'autor_kontakt' => (string)$submitted->autor_kontakt,
+                'material_technik' => (string)$submitted->material_technik,
+                'zeitbedarf' => (string)$submitted->zeitbedarf,
+                'gruppengroesse' => (string)$submitted->gruppengroesse,
+                'vorbereitung' => (string)$submitted->vorbereitung,
+            ];
+            foreach ($multifields as $field) {
+                $values[$field] = implode('##', (array)($submitted->$field ?? []));
+            }
+            foreach ($richfields as $field) {
+                $editor = (array)($submitted->{$field . '_editor'} ?? []);
+                $values[$field] = (string)($editor['text'] ?? '');
+            }
+
+            $changed = local_seminarplaner_update_global_unit((int)$editing->id, $values, (int)$USER->id);
+            $files = local_seminarplaner_sync_unit_materials_from_draft(
+                (int)$editing->id,
+                (int)$submitted->materialien,
+                (int)$USER->id
+            );
+
+            $parts = [];
+            if ($changed) {
+                $parts[] = get_string('editunitsaved', 'local_seminarplaner', implode(', ', $changed));
+            }
+            if ($files['added'] || $files['removed']) {
+                $parts[] = get_string('editunitfileschanged', 'local_seminarplaner', (object)[
+                    'added' => count($files['added']),
+                    'removed' => count($files['removed']),
+                ]);
+            }
+            redirect($pageurl, $parts
+                ? implode(' ', $parts)
+                : get_string('editunitunchanged', 'local_seminarplaner'));
+        } catch (Throwable $e) {
+            $message = $e->getMessage();
+            $error = true;
+        }
+    }
+}
+
 echo $OUTPUT->header();
 echo $OUTPUT->heading(format_string((string)$set->displayname));
-echo html_writer::tag('p', get_string('editunitsintro', 'local_seminarplaner'));
-echo html_writer::div(
-    html_writer::link(new moodle_url('/local/seminarplaner/reviewrequests.php'),
-        get_string('backtoreviewrequests', 'local_seminarplaner'), ['class' => 'kg-btn']),
-    'kg-row'
-);
-
-echo html_writer::tag('style', '
-.kg-eu-list{border:1px solid #d1d5db;border-radius:10px;overflow:hidden;margin:14px 0}
-.kg-eu-item{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 12px;border-bottom:1px solid #e5e7eb;background:#fff}
-.kg-eu-item:last-child{border-bottom:0}
-.kg-eu-item strong{font-weight:600}
-.kg-eu-form{border:1px solid #d1d5db;border-radius:10px;padding:14px;background:#f9fafb;margin:14px 0}
-.kg-eu-field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
-.kg-eu-field label{font-size:12px;font-weight:600;color:#374151}
-.kg-eu-field input[type="text"],.kg-eu-field textarea{width:100%;padding:8px;border:1px solid #d1d5db;border-radius:8px;font:inherit}
-.kg-btn{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:8px 12px;border:1px solid #E3051B;border-radius:8px;background:#E3051B;color:#fff;text-decoration:none;cursor:pointer;margin:6px 6px 6px 0}
-.kg-btn:hover{background:#882A30;border-color:#882A30;color:#fff;text-decoration:none}
-.kg-btn-plain{background:#fff;color:#20242b;border-color:#c5ccd3}
-.kg-btn-plain:hover{background:#eef1f4;color:#20242b;border-color:#98a0aa}
-.kg-row{margin:10px 0}
-');
 
 if ($message !== '') {
     echo $OUTPUT->notification($message, $error ? 'notifyproblem' : 'notifysuccess');
 }
 
-$editing = null;
-if ($methodid > 0) {
-    foreach ($units as $unit) {
-        if ((int)$unit->id === $methodid) {
-            $editing = $unit;
-            break;
-        }
-    }
-}
-
-if ($editing) {
-    // Longer prose gets a textarea, short values a single line - a one-line Ablauf field
-    // would be unusable.
-    $multiline = ['kurzbeschreibung', 'ablauf', 'lernziele', 'vorbereitung', 'risiken_tipps', 'debrief'];
-
-    echo html_writer::start_tag('form', ['method' => 'post', 'action' => $pageurl->out(false), 'class' => 'kg-eu-form']);
-    echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
-    echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'saveunit']);
-    echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'methodsetid', 'value' => $methodsetid]);
-    echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'methodid', 'value' => (int)$editing->id]);
-
-    foreach (local_seminarplaner_review_field_labels() as $field => $label) {
-        if ($field === 'materialien') {
-            continue;
-        }
-        $value = (string)($editing->$field ?? '');
-        $id = 'kg-eu-' . $field;
-        echo html_writer::start_div('kg-eu-field');
-        echo html_writer::tag('label', s($label), ['for' => $id]);
-        if (in_array($field, $multiline, true)) {
-            echo html_writer::tag('textarea', s($value), ['id' => $id, 'name' => $field, 'rows' => 4]);
-        } else {
-            echo html_writer::empty_tag('input', [
-                'type' => 'text',
-                'id' => $id,
-                'name' => $field,
-                'value' => $value,
-            ]);
-        }
-        echo html_writer::end_div();
-    }
-
-    echo html_writer::empty_tag('input', [
-        'type' => 'submit',
-        'class' => 'kg-btn',
-        'value' => get_string('editunitsave', 'local_seminarplaner'),
-    ]);
-    echo html_writer::link($pageurl, get_string('cancel'), ['class' => 'kg-btn kg-btn-plain']);
-    echo html_writer::end_tag('form');
+if ($mform) {
+    echo html_writer::div(
+        html_writer::link($pageurl, get_string('editunitsbacktolist', 'local_seminarplaner')),
+        'kg-row'
+    );
+    $mform->display();
 } else {
+    echo html_writer::tag('p', get_string('editunitsintro', 'local_seminarplaner'));
+    echo html_writer::div(
+        html_writer::link(new moodle_url('/local/seminarplaner/reviewrequests.php'),
+            get_string('backtoreviewrequests', 'local_seminarplaner')),
+        'kg-row'
+    );
     echo html_writer::tag('h4', get_string('editunitscount', 'local_seminarplaner', count($units)));
-    echo html_writer::start_div('kg-eu-list');
+
+    $table = new html_table();
+    $table->head = [get_string('editunitfield_title', 'local_seminarplaner'), get_string('actions')];
     foreach ($units as $unit) {
         $title = trim((string)$unit->title) !== '' ? (string)$unit->title : '—';
-        echo html_writer::start_div('kg-eu-item');
-        echo html_writer::tag('strong', s($title));
-        echo html_writer::link(
-            new moodle_url('/local/seminarplaner/editunits.php',
-                ['methodsetid' => $methodsetid, 'methodid' => (int)$unit->id]),
-            get_string('edit'),
-            ['class' => 'kg-btn kg-btn-plain']
-        );
-        echo html_writer::end_div();
+        $table->data[] = [
+            s($title),
+            html_writer::link(new moodle_url('/local/seminarplaner/editunits.php',
+                ['methodsetid' => $methodsetid, 'methodid' => (int)$unit->id]), get_string('edit')),
+        ];
     }
-    echo html_writer::end_div();
+    echo html_writer::table($table);
 }
 
 echo $OUTPUT->footer();
