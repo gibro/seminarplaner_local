@@ -1173,6 +1173,37 @@ function local_seminarplaner_diff_itemkey(string $title, string $label, string $
 }
 
 /**
+ * Field-to-label map used by the review diff.
+ *
+ * Single source of truth: the diff renders these labels, and applying a reviewer's
+ * decisions has to map the label back to its database column.
+ *
+ * @return array<string, string> Column name => label shown in the diff.
+ */
+function local_seminarplaner_review_field_labels(): array {
+    return [
+        'title' => 'Titel',
+        'seminarphase' => 'Seminarphase',
+        'zeitbedarf' => 'Zeitbedarf',
+        'gruppengroesse' => 'Gruppengröße',
+        'kurzbeschreibung' => 'Kurzbeschreibung',
+        'ablauf' => 'Ablauf',
+        'lernziele' => 'Lernziele',
+        'komplexitaetsgrad' => 'Komplexitätsgrad',
+        'vorbereitung' => 'Vorbereitung',
+        'raumanforderungen' => 'Raumanforderungen',
+        'sozialform' => 'Sozialform',
+        'risiken_tipps' => 'Risiken/Tipps',
+        'debrief' => 'Debrief/Reflexionsfragen',
+        'material_technik' => 'Material/Technik',
+        'materialien' => 'Materialien',
+        'tags' => 'Tags',
+        'kognitive_dimension' => 'Kognitive Dimension',
+        'autor_kontakt' => 'Autor*in / Kontakt',
+    ];
+}
+
+/**
  * Compute review diff between two method version lists.
  *
  * @param stdClass[] $baserows Previous version methods.
@@ -1211,26 +1242,7 @@ function local_seminarplaner_compute_review_diff(array $baserows, array $newrows
         );
     }
 
-    $fieldlabels = [
-        'title' => 'Titel',
-        'seminarphase' => 'Seminarphase',
-        'zeitbedarf' => 'Zeitbedarf',
-        'gruppengroesse' => 'Gruppengröße',
-        'kurzbeschreibung' => 'Kurzbeschreibung',
-        'ablauf' => 'Ablauf',
-        'lernziele' => 'Lernziele',
-        'komplexitaetsgrad' => 'Komplexitätsgrad',
-        'vorbereitung' => 'Vorbereitung',
-        'raumanforderungen' => 'Raumanforderungen',
-        'sozialform' => 'Sozialform',
-        'risiken_tipps' => 'Risiken/Tipps',
-        'debrief' => 'Debrief/Reflexionsfragen',
-        'material_technik' => 'Material/Technik',
-        'materialien' => 'Materialien',
-        'tags' => 'Tags',
-        'kognitive_dimension' => 'Kognitive Dimension',
-        'autor_kontakt' => 'Autor*in / Kontakt',
-    ];
+    $fieldlabels = local_seminarplaner_review_field_labels();
 
     $result = ['added' => [], 'removed' => [], 'changed' => []];
 
@@ -1416,4 +1428,229 @@ function local_seminarplaner_diff_item_map(array $diff): array {
         }
     }
     return $map;
+}
+
+/**
+ * Replace a method's material attachments with those of another method.
+ *
+ * Used when a reviewer rejects the "Materialien" row: the submitted files must give way
+ * to the ones the previous version carried.
+ *
+ * @param int $targetmethodid Method whose attachments get replaced.
+ * @param int $sourcemethodid Method to copy the attachments from, 0 to just clear.
+ * @param int $actorid Acting user id.
+ * @return void
+ */
+function local_seminarplaner_replace_method_materials(int $targetmethodid, int $sourcemethodid, int $actorid): void {
+    global $DB;
+
+    $fs = get_file_storage();
+    $contextid = (int)context_system::instance()->id;
+
+    // Drop what the submission brought along.
+    $targetlinks = $DB->get_records('local_kgen_method_file', ['methodid' => $targetmethodid, 'kind' => 'material']);
+    foreach ($targetlinks as $link) {
+        foreach ($fs->get_area_files($contextid, 'local_seminarplaner', 'method_material',
+            (int)$link->fileitemid, 'id ASC', false) as $file) {
+            $file->delete();
+        }
+    }
+    $DB->delete_records('local_kgen_method_file', ['methodid' => $targetmethodid, 'kind' => 'material']);
+
+    if ($sourcemethodid <= 0) {
+        return;
+    }
+
+    $sourcelinks = $DB->get_records('local_kgen_method_file', ['methodid' => $sourcemethodid, 'kind' => 'material'], 'id ASC');
+    if (!$sourcelinks) {
+        return;
+    }
+
+    $newitemid = local_seminarplaner_next_file_itemid('method_material');
+    $copied = 0;
+    foreach ($sourcelinks as $link) {
+        foreach ($fs->get_area_files($contextid, 'local_seminarplaner', 'method_material',
+            (int)$link->fileitemid, 'id ASC', false) as $file) {
+            $fs->create_file_from_string((object)[
+                'contextid' => $contextid,
+                'component' => 'local_seminarplaner',
+                'filearea' => 'method_material',
+                'itemid' => $newitemid,
+                'filepath' => '/',
+                'filename' => (string)$file->get_filename(),
+                'userid' => $actorid,
+            ], (string)$file->get_content());
+            $copied++;
+        }
+    }
+
+    if ($copied > 0) {
+        $DB->insert_record('local_kgen_method_file', (object)[
+            'methodid' => $targetmethodid,
+            'kind' => 'material',
+            'fileitemid' => $newitemid,
+            'timecreated' => time(),
+        ]);
+    }
+}
+
+/**
+ * Apply a reviewer's decisions to the version under review.
+ *
+ * The submitted version already carries every proposed change. Accepting a row therefore
+ * means leaving it alone; rejecting it means restoring what the previous version had. A
+ * newly submitted seminar unit whose rows were all rejected is dropped, and a unit the
+ * submission removed comes back if its removal was rejected. After this the version can
+ * be published and carries exactly the accepted changes.
+ *
+ * @param int $methodsetid Method set id.
+ * @param int $versionid Version under review.
+ * @param int $reviewerid Whose decisions to apply.
+ * @return array{fields: int, units_removed: int, units_restored: int, materials: int, pending: int}
+ */
+function local_seminarplaner_apply_review_decisions(int $methodsetid, int $versionid, int $reviewerid): array {
+    global $DB;
+
+    $result = ['fields' => 0, 'units_removed' => 0, 'units_restored' => 0, 'materials' => 0, 'pending' => 0];
+
+    $version = $DB->get_record('local_kgen_methodset_ver', ['id' => $versionid], '*', MUST_EXIST);
+    $previous = $DB->get_record_sql(
+        "SELECT id
+           FROM {local_kgen_methodset_ver}
+          WHERE methodsetid = :methodsetid
+            AND versionnum < :versionnum
+       ORDER BY versionnum DESC",
+        ['methodsetid' => $methodsetid, 'versionnum' => (int)$version->versionnum],
+        IGNORE_MULTIPLE
+    );
+
+    $baserows = $previous
+        ? $DB->get_records('local_kgen_method', ['methodsetid' => $methodsetid, 'methodsetversionid' => (int)$previous->id])
+        : [];
+    $newrows = $DB->get_records('local_kgen_method', ['methodsetid' => $methodsetid, 'methodsetversionid' => $versionid]);
+
+    $decisions = [];
+    foreach ($DB->get_records('local_kgen_review_decision',
+        ['methodsetversionid' => $versionid, 'reviewerid' => $reviewerid]) as $record) {
+        $decisions[(string)$record->itemkey] = (string)$record->decision;
+    }
+    if (!$decisions) {
+        return $result;
+    }
+
+    $diff = local_seminarplaner_compute_review_diff($baserows, $newrows);
+    $labeltofield = array_flip(local_seminarplaner_review_field_labels());
+
+    // Index both sides by normalized title so a diff item finds its database row.
+    $newbytitle = [];
+    foreach ($newrows as $row) {
+        $key = local_seminarplaner_normalize_title_key((string)$row->title);
+        if ($key !== '' && !isset($newbytitle[$key])) {
+            $newbytitle[$key] = $row;
+        }
+    }
+    $basebytitle = [];
+    foreach ($baserows as $row) {
+        $key = local_seminarplaner_normalize_title_key((string)$row->title);
+        if ($key !== '' && !isset($basebytitle[$key])) {
+            $basebytitle[$key] = $row;
+        }
+    }
+
+    $transaction = $DB->start_delegated_transaction();
+    $now = time();
+
+    foreach (['changed', 'added', 'removed'] as $bucket) {
+        foreach ((array)($diff[$bucket] ?? []) as $item) {
+            $title = (string)($item['title'] ?? '');
+            $titlekey = local_seminarplaner_normalize_title_key($title);
+            $rows = (array)($item['rows'] ?? []);
+
+            $rejected = [];
+            $decided = 0;
+            foreach ($rows as $row) {
+                $itemkey = local_seminarplaner_diff_itemkey(
+                    $title,
+                    (string)($row['label'] ?? ''),
+                    trim((string)($row['before'] ?? '')),
+                    trim((string)($row['after'] ?? '')),
+                    (string)($row['status'] ?? 'replaced')
+                );
+                $decision = $decisions[$itemkey] ?? 'pending';
+                if ($decision === 'pending') {
+                    $result['pending']++;
+                    continue;
+                }
+                $decided++;
+                if ($decision === 'rejected') {
+                    $rejected[] = $row;
+                }
+            }
+            if (!$decided || !$rejected) {
+                continue;
+            }
+
+            if ($bucket === 'removed') {
+                // The submission dropped this unit and the reviewer disagrees - bring it back.
+                $source = $basebytitle[$titlekey] ?? null;
+                if ($source && !isset($newbytitle[$titlekey])) {
+                    $copy = clone $source;
+                    unset($copy->id);
+                    $copy->methodsetversionid = $versionid;
+                    $copy->timecreated = $now;
+                    $copy->timemodified = $now;
+                    $copy->modifiedby = $reviewerid;
+                    $newid = (int)$DB->insert_record('local_kgen_method', $copy);
+                    local_seminarplaner_replace_method_materials($newid, (int)$source->id, $reviewerid);
+                    $result['units_restored']++;
+                }
+                continue;
+            }
+
+            $target = $newbytitle[$titlekey] ?? null;
+            if (!$target) {
+                continue;
+            }
+
+            // A brand-new unit rejected in full disappears rather than being emptied field by field.
+            if ($bucket === 'added' && count($rejected) === count($rows)) {
+                local_seminarplaner_replace_method_materials((int)$target->id, 0, $reviewerid);
+                $DB->delete_records('local_kgen_method', ['id' => (int)$target->id]);
+                unset($newbytitle[$titlekey]);
+                $result['units_removed']++;
+                continue;
+            }
+
+            $update = ['id' => (int)$target->id];
+            foreach ($rejected as $row) {
+                $label = (string)($row['label'] ?? '');
+                $field = $labeltofield[$label] ?? '';
+                if ($field === '') {
+                    continue;
+                }
+                if ($field === 'materialien') {
+                    // Not a column: restore the files the previous version carried.
+                    $source = $basebytitle[$titlekey] ?? null;
+                    local_seminarplaner_replace_method_materials(
+                        (int)$target->id,
+                        $source ? (int)$source->id : 0,
+                        $reviewerid
+                    );
+                    $result['materials']++;
+                    continue;
+                }
+                $update[$field] = (string)($row['before'] ?? '');
+                $result['fields']++;
+            }
+            if (count($update) > 1) {
+                $update['timemodified'] = $now;
+                $update['modifiedby'] = $reviewerid;
+                $DB->update_record('local_kgen_method', (object)$update);
+            }
+        }
+    }
+
+    $transaction->allow_commit();
+
+    return $result;
 }
