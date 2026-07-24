@@ -1719,6 +1719,57 @@ function local_seminarplaner_update_global_unit(int $methodid, array $values, in
 }
 
 /**
+ * Delete one seminar unit from a global set, attachments and all.
+ *
+ * Mirrors the cascade the set-wide delete uses, but scoped to a single unit: the method row,
+ * its material and H5P attachments plus their link rows disappear. The removal is written to
+ * the workflow log so the collection's history stays complete. Activities that already copied
+ * the unit keep their copy - only the library entry goes.
+ *
+ * @param int $methodid Method row id.
+ * @param int $actorid Acting user id.
+ * @return string Title of the unit that was removed.
+ */
+function local_seminarplaner_delete_global_unit(int $methodid, int $actorid): string {
+    global $DB;
+
+    $method = $DB->get_record('local_kgen_method', ['id' => $methodid], '*', MUST_EXIST);
+
+    $transaction = $DB->start_delegated_transaction();
+
+    // Drop the attachments first: both material and H5P areas hang off the same link table.
+    $fs = get_file_storage();
+    $contextid = (int)context_system::instance()->id;
+    $links = $DB->get_records('local_kgen_method_file', ['methodid' => $methodid]);
+    foreach ($links as $link) {
+        $filearea = ((string)$link->kind === 'h5p') ? 'method_h5p' : 'method_material';
+        foreach ($fs->get_area_files($contextid, 'local_seminarplaner', $filearea,
+            (int)$link->fileitemid, 'id ASC', false) as $file) {
+            $file->delete();
+        }
+    }
+    $DB->delete_records('local_kgen_method_file', ['methodid' => $methodid]);
+
+    $DB->delete_records('local_kgen_method', ['id' => $methodid]);
+
+    // Traceability: the collection keeps a record of what was removed.
+    $set = $DB->get_record('local_kgen_methodset', ['id' => (int)$method->methodsetid], 'id,status', IGNORE_MISSING);
+    $status = (string)($set->status ?? 'published');
+    (new \local_seminarplaner\local\repository\workflow_event_repository())->create(
+        (int)$method->methodsetid,
+        (int)$method->methodsetversionid,
+        $status,
+        $status,
+        get_string('editunitdeletelogged', 'local_seminarplaner', (string)$method->title),
+        $actorid
+    );
+
+    $transaction->allow_commit();
+
+    return (string)$method->title;
+}
+
+/**
  * Sync a unit's material attachments from a draft file area.
  *
  * The form hands over a draft item id; its contents become the unit's attachments. Files

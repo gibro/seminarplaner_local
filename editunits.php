@@ -81,6 +81,31 @@ if (!$units) {
 
 $editing = ($methodid > 0 && isset($units[$methodid])) ? $units[$methodid] : null;
 
+// Löschen einer Seminareinheit - eigener, bestätigter Pfad, unabhängig vom Bearbeiten-Formular.
+if ($action === 'deleteunit' && $methodid > 0 && isset($units[$methodid])) {
+    $unit = $units[$methodid];
+    if (optional_param('confirm', 0, PARAM_BOOL) && confirm_sesskey()) {
+        $deleted = local_seminarplaner_delete_global_unit((int)$unit->id, (int)$USER->id);
+        redirect($pageurl, get_string('editunitdeleted', 'local_seminarplaner', s($deleted)));
+    }
+
+    $unittitle = trim((string)$unit->title) !== '' ? (string)$unit->title : '—';
+    echo $OUTPUT->header();
+    echo $OUTPUT->heading(format_string((string)$set->displayname));
+    echo $OUTPUT->confirm(
+        get_string('editunitdeleteconfirm', 'local_seminarplaner', s($unittitle)),
+        new moodle_url($pageurl, [
+            'action' => 'deleteunit',
+            'methodid' => (int)$unit->id,
+            'confirm' => 1,
+            'sesskey' => sesskey(),
+        ]),
+        $pageurl
+    );
+    echo $OUTPUT->footer();
+    exit;
+}
+
 $mform = null;
 if ($editing) {
     $mform = new \local_seminarplaner\form\edit_unit_form($pageurl->out(false), [
@@ -225,10 +250,14 @@ if ($mform) {
     $table->head = [get_string('editunitfield_title', 'local_seminarplaner'), get_string('actions')];
     foreach ($units as $unit) {
         $title = trim((string)$unit->title) !== '' ? (string)$unit->title : '—';
+        $editlink = html_writer::link(new moodle_url('/local/seminarplaner/editunits.php',
+            ['methodsetid' => $methodsetid, 'methodid' => (int)$unit->id]), get_string('edit'));
+        $deletelink = html_writer::link(new moodle_url('/local/seminarplaner/editunits.php',
+            ['methodsetid' => $methodsetid, 'methodid' => (int)$unit->id, 'action' => 'deleteunit']),
+            get_string('delete'), ['class' => 'text-danger']);
         $table->data[] = [
             s($title),
-            html_writer::link(new moodle_url('/local/seminarplaner/editunits.php',
-                ['methodsetid' => $methodsetid, 'methodid' => (int)$unit->id]), get_string('edit')),
+            $editlink . ' &middot; ' . $deletelink,
         ];
     }
     echo html_writer::table($table);
