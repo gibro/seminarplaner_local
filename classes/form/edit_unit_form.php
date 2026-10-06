@@ -153,9 +153,16 @@ class edit_unit_form extends moodleform {
             get_string('editunitfield_raum', 'local_seminarplaner'), $options['raumanforderungen']);
         $raum->setMultiple(true);
 
-        $sozial = $mform->addElement('select', 'sozialform',
-            get_string('editunitfield_sozialform', 'local_seminarplaner'), $options['sozialform']);
-        $sozial->setMultiple(true);
+        // Wie im Einheiten-Editor der Aktivität: neben den vorgegebenen Sozialformen
+        // lassen sich eigene eintippen. Ein Auswahlfeld würde unbekannte Werte beim
+        // Speichern verwerfen.
+        $mform->addElement('autocomplete', 'sozialform',
+            get_string('editunitfield_sozialform', 'local_seminarplaner'), $options['sozialform'], [
+                'multiple' => true,
+                'tags' => true,
+                'noselectionstring' => get_string('editunitfield_sozialform_none', 'local_seminarplaner'),
+                'placeholder' => get_string('editunitfield_sozialform_add', 'local_seminarplaner'),
+            ]);
 
         $mform->addElement('select', 'vorbereitung',
             get_string('editunitfield_vorbereitung', 'local_seminarplaner'),
