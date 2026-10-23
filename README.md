@@ -1,184 +1,95 @@
-# Seminarplaner Plugins (Moodle)
+# local_seminarplaner – globale Bibliothek und Prüf-Workflow
 
-Dieses Repository enthält zwei zusammenarbeitende Moodle-Plugins:
+Site-weites Gegenstück zur Kursaktivität [`mod_seminarplaner`](https://github.com/gibro/seminarplaner_mod). Es verwaltet die **globale Bibliothek**, aus der sich Referent*innen in allen Kursen bedienen können, und den **Prüf-Workflow**, über den neue oder geänderte Inhalte in diese Bibliothek gelangen.
 
-- `mod_seminarplaner` (Aktivitätsmodul für Kurskontext)
-- `local_seminarplaner` (globale Methodenset-Verwaltung, Review-Workflow)
+Die Bibliothek kennt zwei Arten von Einträgen:
+
+- **Methoden-Sammlung**: eine Sammlung einzelner Seminareinheiten
+- **Seminarkonzept**: ein vollständiges Seminar inklusive Ablaufplan
+
+`mod_seminarplaner` setzt dieses Plugin voraus; es muss daher zuerst installiert werden.
+
+| | |
+| --- | --- |
+| Version | `1.0.0` (`2026100600`), Reife `STABLE` |
+| Moodle | ab 4.5 (`$plugin->requires = 2024042200`) |
+| Datenbanken | MySQL/MariaDB und PostgreSQL |
+| Lizenz | GNU GPL v3 oder später (siehe `LICENSE`) |
 
 ## Funktionen
-### 2) `local_seminarplaner` (globale Governance)
 
-Kernfunktionen:
+- **Verwaltung globaler Einträge** (`manage.php`, erreichbar unter `Website-Administration -> Plugins -> Lokale Plugins`): anlegen, bearbeiten, archivieren; jeder Eintrag gilt site-weit oder für einen Kursbereich
+- **Seminareinheiten direkt bearbeiten** (`editunits.php`), inklusive Dateianhängen
+- **Status-Workflow** `draft` → `review` → `published`, optional `archived`; zurück zu `draft` zur Überarbeitung
+- **Konzeptverantwortliche** (Prüfer*innen) pro Eintrag zuordnen
+- **Review-Seite** (`reviewrequests.php`) mit Änderungsansicht zwischen Versionen, Annehmen/Ablehnen je Änderung und Veröffentlichen
+- **Benachrichtigungen** bei Einreichung; dauerhafter Zugang zur Review-Seite über `Profil -> Berichte -> Reviewanfragen für globale Konzepte`
+- **Import** aus CSV, ZIP oder Seminarplaner-JSON in einen neuen oder einen bestehenden Entwurf. Beim Import in einen bestehenden Eintrag werden Einheiten mit gleichem Titel aktualisiert statt doppelt angelegt; leere Spalten lassen vorhandene Werte unangetastet. Dateianhänge gehen nur per ZIP (Ordner `files/`, Dateinamen in der Spalte „Materialien“).
+- **Export** globaler Einträge als mod_data-kompatible CSV/ZIP
+- Datenschutz-Provider (Privacy API) für Export und Löschung personenbezogener Daten
 
-- Verwaltung globaler Methodensets
-- Workflow-Status:
-  - `draft`
-  - `review`
-  - `published`
-  - `archived`
-- Reviewer-Zuweisung pro Methodenset
-- Differenzansicht (Review-Diff) zwischen Versionen
-- Speichern von Review-Entscheidungen (accepted/rejected/pending)
-- Import von mod_data-kompatiblen CSV/ZIP in neue oder bestehende Sets
-- Export globaler Sets als mod_data-kompatible CSV/ZIP
-- Benachrichtigungslogik im Review-Prozess
-
-Wichtige Webservice-Funktionen (AJAX):
-
-- `create_draft_methodset`
-- `transition_methodset`
-- `list_methodsets`
-
-## Aktuelle Änderungen (Juli 2026)
-
-- Bugfix Review-Einreichung: Material-Anhänge von Seminareinheiten gehen beim Einreichen zur Review nicht mehr verloren. Die Dateien werden jetzt beim Einreichen (in ein bestehendes wie in ein neues Konzept) in den globalen Dateibereich von `local_seminarplaner` kopiert und mit der Konzept-Version verknüpft – auch für unverändert übernommene Seminareinheiten des bestehenden Konzepts. Damit bleiben Anhänge nach Annahme/Veröffentlichung erhalten.
-- `local/reviewrequests.php`: Review-Diff-Modal überarbeitet – die Diff-Liste liegt in einem gerahmten, eigenen Scrollbereich; „Alle Änderungen annehmen“, „Entscheidungen speichern“ und „Schließen“ sind von Beginn an ohne Scrollen sichtbar.
-- `local/lib.php` (neu): Link „Reviewanfragen für globale Konzepte“ auf der eigenen Profilseite unter `Profil -> Berichte` für alle Nutzer mit Review-/Verwaltungsrechten. Reviewer erreichen die Review-Seite damit auch ohne Benachrichtigungsmail.
-- README: Neuer Abschnitt „Konzeptverantwortliche (Reviewer) in Moodle einrichten“ mit Berechtigungstabelle, Schritt-für-Schritt-Anleitung (inkl. `publishset`) und typischen Symptomen bei fehlenden Rechten.
-- `local_seminarplaner`: Version `0.2.3-beta` (`2026070600`).
-
-### Ältere Änderungen (März 2026)
-
-- `mod/importexport.php`: komponentenbasierter Import/Export mit Mehrfachauswahl pro Dateiinhalt (Methoden, Bausteine, Seminarpläne) inkl. Vorschau-Auswahl je Eintrag.
-- `mod/importexport.php`: Review/Local-Exportbox entfernt; Seminarplaner-JSON ist der zentrale Austauschpfad.
-- `mod/methods.php`: Alternativmethoden als reine Mehrfachauswahl (ohne Suche) plus dynamischer Hinweistext bei fehlenden Optionen.
-- `mod/methodlibrary.php`: Edit-Formular zeigt gespeicherte kognitive Dimensionen wieder korrekt in der Mehrfachauswahl; TinyMCE-Felder auf 10 sichtbare Zeilen erhöht.
-- `mod/planningmode.php`: Feld „Alternativgruppe“ ersetzt durch „Baustein-Alternative überschreiben“ mit Mehrfach-Dropdown auf vorhandene Bausteine.
-- `local/manage.php` und `local/reviewrequests.php`: Layout/Buttons/Tabellenreihenfolge vereinheitlicht und an das Plugin-Design angepasst.
-
-## Rechte/Capabilities
-
-### `mod_seminarplaner`
-
-- `mod/seminarplaner:view`
-- `mod/seminarplaner:managemethods`
-- `mod/seminarplaner:managegrids`
-- `mod/seminarplaner:overrideglobalset`
-- `mod/seminarplaner:importfrommoddata`
-- `mod/seminarplaner:exporttomoddata`
-- `mod/seminarplaner:breaklock`
-
-### `local_seminarplaner`
-
-- `local/seminarplaner:viewglobalsets`
-- `local/seminarplaner:createdraftset`
-- `local/seminarplaner:editdraftset`
-- `local/seminarplaner:submitforreview`
-- `local/seminarplaner:reviewset`
-- `local/seminarplaner:publishset`
-- `local/seminarplaner:archiveglobalset`
-- `local/seminarplaner:manageareascopes`
-- `local/seminarplaner:importglobalset`
-- `local/seminarplaner:exportglobalset`
+Eingereicht wird aus der Kursaktivität heraus (Tab **Einreichen** in `mod_seminarplaner`). Anhänge der eingereichten Seminareinheiten werden dabei in den globalen Dateibereich übernommen und bleiben nach der Veröffentlichung erhalten.
 
 ## Installation
 
-### 1) Dateien ablegen
+1. Plugin nach `moodle/local/seminarplaner` legen (bei Moodle mit `public/`-Verzeichnis: `public/local/seminarplaner`), danach `mod_seminarplaner` nach `mod/seminarplaner`.
+2. Upgrade ausführen: `Website-Administration -> Mitteilungen` oder per CLI:
 
-In deiner Moodle-Installation:
+   ```bash
+   php admin/cli/upgrade.php
+   ```
 
-- `mod/seminarplaner` nach: `moodle/mod/seminarplaner`
-- `local/seminarplaner` nach: `moodle/local/seminarplaner`
+3. Caches leeren (`Website-Administration -> Entwicklung -> Caches leeren`).
+4. Rollen für Konzeptverantwortliche einrichten (siehe unten).
 
-### 2) Upgrade ausführen
+Für den ZIP-Import muss PHP `ZipArchive` bereitstellen.
 
-- Als Admin anmelden
-- `Website-Administration -> Mitteilungen` öffnen
-- Upgrade/DB-Migration vollständig durchlaufen lassen
+## Rechte
 
-Alternativ CLI:
+| Berechtigung | Einfach erklärt | Kontext | Standardrollen |
+| --- | --- | --- | --- |
+| `local/seminarplaner:viewglobalsets` | Globale Einträge ansehen. Grundlage für fast alles Weitere, auch für das Übernehmen in eine Kursaktivität. | System oder Kursbereich | Trainer/in (beide), Manager |
+| `local/seminarplaner:createdraftset` | Neuen globalen Eintrag als Entwurf anlegen | System oder Kursbereich | Manager |
+| `local/seminarplaner:editdraftset` | Entwürfe bearbeiten und Konzeptverantwortliche zuordnen | System oder Kursbereich | Manager |
+| `local/seminarplaner:submitforreview` | Entwurf zur Prüfung einreichen (`draft` → `review`). Einreich-Recht, kein Prüf-Recht. | System oder Kursbereich | Manager |
+| `local/seminarplaner:reviewset` | Das eigentliche Prüf-Recht: zugewiesene Prüfungen unter „Meine Reviews“ sehen, Änderungen annehmen/ablehnen, zurück auf `draft` setzen. Nur wer es hat, ist als Konzeptverantwortliche*r auswählbar. | System oder Kursbereich | Manager |
+| `local/seminarplaner:publishset` | Nach der Prüfung veröffentlichen (`review` → `published`). **Wird immer auf Systemebene geprüft.** | Nur System | – |
+| `local/seminarplaner:archiveglobalset` | Veröffentlichte Einträge archivieren bzw. zurückholen | Nur System | – |
+| `local/seminarplaner:manageareascopes` | Geltungsbereiche verwalten | Nur System | Manager |
+| `local/seminarplaner:importglobalset` | Globale Einträge aus Dateien importieren | System oder Kursbereich | Manager |
+| `local/seminarplaner:exportglobalset` | Globale Einträge exportieren | System oder Kursbereich | Manager |
 
-```bash
-php admin/cli/upgrade.php
-```
+`publishset` und `archiveglobalset` hat **keine** Standardrolle. Ohne manuelle Vergabe können nur Admins veröffentlichen oder archivieren.
 
-### 3) Berechtigungen prüfen
-
-- Rollen/Capabilities für Lehrende, Reviewer, Manager prüfen
-- Für Review/Publishing sicherstellen, dass die passenden `local/*` Capabilities auf System-/Kategoriekontext vergeben sind
-
-### 4) Aktivität im Kurs anlegen
-
-- Kurs öffnen
-- Aktivität `Seminarplaner` hinzufügen
-- Optional Standard-Methodenset-ID konfigurieren
-
-## Konzeptverantwortliche (Reviewer) in Moodle einrichten
-
-Konzeptverantwortliche prüfen eingereichte Konzepte auf `local/seminarplaner/reviewrequests.php`. Damit eine Person dort als Konzeptverantwortliche*r auswählbar ist und arbeiten kann, braucht sie eine Rolle mit den passenden Berechtigungen.
-
-### Was macht welche Berechtigung?
-
-| Berechtigung | Einfach erklärt | Kontext |
-| --- | --- | --- |
-| `local/seminarplaner:viewglobalsets` | Globale Konzepte ansehen (Katalog und Übersichten). Grundlage für fast alle weiteren Funktionen. | System oder Kursbereich |
-| `local/seminarplaner:createdraftset` | Neues globales Konzept als Entwurf anlegen. | System oder Kursbereich |
-| `local/seminarplaner:editdraftset` | Entwürfe bearbeiten und Konzeptverantwortliche zuordnen. | System oder Kursbereich |
-| `local/seminarplaner:submitforreview` | Entwurf zur Review einreichen (Status `draft` -> `review`). Einreich-Recht, kein Reviewer-Recht. | System oder Kursbereich |
-| `local/seminarplaner:reviewset` | Das eigentliche Reviewer-Recht: zugewiesene Reviews unter „Meine Reviews“ sehen, Review-Diff öffnen, Änderungen annehmen/ablehnen und ein Konzept zur Überarbeitung zurück auf `draft` setzen. Nur wer dieses Recht hat, ist am Konzept als Konzeptverantwortliche*r auswählbar. | System oder Kursbereich |
-| `local/seminarplaner:publishset` | Konzept nach der Review veröffentlichen (Status `review` -> `published`). Erst mit diesem Recht erscheint der Button „Veröffentlichen“. **Wird immer auf Systemebene geprüft.** | Nur System |
-| `local/seminarplaner:archiveglobalset` | Veröffentlichte Konzepte archivieren bzw. archivierte zurückholen. | Nur System |
-| `local/seminarplaner:manageareascopes` | Geltungsbereiche (Scopes) für Konzepte verwalten. | Nur System |
-| `local/seminarplaner:importglobalset` | Konzepte aus Dateien importieren (ZIP/CSV/JSON). | System oder Kursbereich |
-| `local/seminarplaner:exportglobalset` | Konzepte exportieren. | System oder Kursbereich |
-
-Standardrollen nach der Installation: Trainer/innen erhalten automatisch nur `viewglobalsets`; die Rolle `Manager` erhält alle Rechte **außer** `publishset` und `archiveglobalset`. Diese beiden hat **keine einzige Standardrolle** – ohne manuelle Vergabe kann also niemand außer Admins veröffentlichen oder archivieren.
-
-### Schritt für Schritt: Reviewer-Rolle anlegen
+## Konzeptverantwortliche (Prüfer*innen) einrichten
 
 1. `Website-Administration -> Nutzer/innen -> Rechte ändern -> Rollen verwalten`
-2. `Neue Rolle hinzufügen` (oder bestehende Rolle duplizieren), Name z. B. `Reviewer` oder `Konzeptverantwortliche`
+2. Neue Rolle anlegen (oder eine bestehende duplizieren), z. B. „Konzeptverantwortliche“
 3. Als Kontexttypen für die Zuweisung `System` und `Kursbereich` erlauben
-4. Folgende Berechtigungen auf `Erlauben` setzen:
-   - `local/seminarplaner:reviewset` (Pflicht – das eigentliche Review-Recht)
-   - `local/seminarplaner:viewglobalsets` (empfohlen – Konzepte ansehen)
-   - `local/seminarplaner:publishset` (nur wenn Reviewer nach angenommener Review selbst veröffentlichen sollen)
-5. Rolle zuweisen:
-   - global: `Website-Administration -> Nutzer/innen -> Rechte ändern -> Globale Rollen zuweisen`
-   - oder auf Kursbereichsebene: `Kursbereich -> Rollen zuweisen`
-   - **Achtung:** Soll die Person veröffentlichen können, muss die Rolle **global (Systemebene)** zugewiesen werden. `publishset` wird im Systemkontext geprüft – eine Zuweisung nur im Kursbereich reicht dafür nicht aus.
-6. Person am Konzept zuordnen: auf `reviewrequests.php` beim Methodenset unter „Konzeptverantwortliche“ auswählen
-7. Prüfen:
-   - Bei Einreichungen erhält die Person eine Benachrichtigungsmail mit Link zur Review-Seite
-   - Dauerhaft erreichbar ist die Seite über das eigene Profil: `Profilbild -> Profil -> Berichte -> Reviewanfragen für globale Konzepte`
-   - Bei einem Set im Status `review` sieht die Person „Review-Diff anzeigen“ und „Zurück zu Entwurf“; mit `publishset` zusätzlich „Veröffentlichen“
-
-### Typische Symptome bei fehlenden Rechten
-
-- Person ist nicht als Konzeptverantwortliche auswählbar -> `reviewset` fehlt im Scope (Kursbereich/System) des Konzepts.
-- „Meine Reviews“ ist leer, obwohl eingereicht wurde -> Person ist dem Konzept nicht als Konzeptverantwortliche zugeordnet.
-- Nach angenommener Review fehlt der Button „Veröffentlichen“ -> `publishset` fehlt in der Rolle, oder die Rolle ist nur im Kursbereich statt global zugewiesen.
-- Kein Eintrag im Profil unter „Berichte“ -> keine Review-/Verwaltungsrechte in einem Scope mit vorhandenen Konzepten, oder nach dem Plugin-Update wurden die Caches nicht geleert.
+4. Auf `Erlauben` setzen:
+   - `local/seminarplaner:reviewset` (Pflicht)
+   - `local/seminarplaner:viewglobalsets` (empfohlen)
+   - `local/seminarplaner:publishset` (nur wenn die Person nach der Prüfung selbst veröffentlichen soll)
+5. Rolle zuweisen – global (`Globale Rollen zuweisen`) oder im Kursbereich (`Kursbereich -> Rollen zuweisen`).
+   **Achtung:** Wer veröffentlichen soll, braucht die Rolle **global**, weil `publishset` im Systemkontext geprüft wird.
+6. Person am Eintrag zuordnen: auf `reviewrequests.php` beim Eintrag unter „Konzeptverantwortliche“ auswählen.
+7. Prüfen: Bei einem Eintrag im Status `review` sieht die Person „Review-Diff anzeigen“ und „Zurück zu Entwurf“, mit `publishset` zusätzlich „Veröffentlichen“.
 
 ### Empfohlene Rollentrennung
 
-- Reine Reviewer-Rolle:
-  - `local/seminarplaner:reviewset`
-  - kein `local/seminarplaner:submitforreview`
-  - Erwartetes Verhalten:
-    - Auf `local/seminarplaner/reviewrequests.php` erscheint die Ansicht `Meine Reviews`
-    - Es werden nur die dem Nutzer zugewiesenen Reviews angezeigt
-    - Es gibt keine Möglichkeit, andere Konzeptverantwortliche zuzuweisen
+- **Reine Prüfer*innen:** `reviewset`, aber **kein** `submitforreview`. Auf der Review-Seite erscheint dann nur „Meine Reviews“ mit den eigenen Zuweisungen, ohne Möglichkeit, andere zuzuordnen.
+- **Prüfer*innen mit Veröffentlichungsrecht:** zusätzlich `publishset`, Rolle global zugewiesen.
+- **Erweiterte Workflow-Rolle:** zusätzlich `submitforreview` – nur, wenn die Person Entwürfe selbst einreichen soll. Sie verhält sich dann teilweise wie eine verwaltende Person.
 
-- Reviewer mit Veröffentlichungsrecht:
-  - zusätzlich `local/seminarplaner:publishset`, Rolle **global** zugewiesen
-  - kann angenommene Reviews direkt selbst veröffentlichen (`review` -> `published`)
+### Typische Symptome bei fehlenden Rechten
 
-- Erweiterte Workflow-Rolle:
-  - `local/seminarplaner:reviewset`
-  - optional zusätzlich `local/seminarplaner:submitforreview`
-  - Nur vergeben, wenn die Person Entwurfs-Sets selbst zur Review einreichen soll. Mit diesem Recht verhält sich die Person nicht mehr wie ein reiner Reviewer, sondern teilweise wie eine verwaltende Person im Review-Workflow.
+- Person ist nicht als Konzeptverantwortliche*r auswählbar → `reviewset` fehlt im Geltungsbereich (Kursbereich/System) des Eintrags.
+- „Meine Reviews“ ist leer, obwohl eingereicht wurde → Person ist dem Eintrag nicht zugeordnet.
+- Nach angenommener Prüfung fehlt „Veröffentlichen“ → `publishset` fehlt, oder die Rolle ist nur im Kursbereich statt global zugewiesen.
+- Kein Eintrag unter `Profil -> Berichte` → keine Prüf-/Verwaltungsrechte in einem Bereich mit vorhandenen Einträgen, oder nach dem Update wurden die Caches nicht geleert.
+- Person sieht trotz reiner Prüf-Rolle fremde Einträge oder Zuordnungs-Steuerelemente → im selben Bereich ist noch ein zusätzliches Workflow- oder Verwaltungsrecht vergeben.
 
-### Wichtig für Tests
+## Entwicklung
 
-- Wenn ein Testnutzer `local/seminarplaner:submitforreview` entfernt bekommt und danach `Meine Reviews` sieht, ist das erwartetes Verhalten für eine reine Reviewer-Rolle.
-- Wenn ein Nutzer trotz Reviewer-Rolle fremde Sets oder Zuweisungs-Steuerelemente sieht, ist fast immer noch ein zusätzliches Workflow-/Verwaltungsrecht im selben Scope vergeben.
-
-## Wichtige Hinweise
-
-- Beide Plugins sind als **Paar** gedacht. Viele Flows (globale Sets, Review) setzen `local_seminarplaner` voraus.
-- Releasestand ist `alpha` (beide Plugins). Vor Produktion Staging/Tests durchführen.
-- Import von ZIP benötigt `ZipArchive` in PHP.
-- Export-/PDF-UI-Flows nutzen lokal eingebundene Third-Party-Bibliotheken (kein CDN erforderlich).
-- Große Importdateien sind limitiert (z. B. Uploadgröße/CSV-Reihen/ZIP-Einträge), um Performance und Sicherheit zu schützen.
-- Nach Updates: Cache leeren (`Website-Administration -> Entwicklung -> Caches leeren`) falls UI/JS nicht aktuell erscheint.
+- Tests: `vendor/bin/phpunit --testsuite local_seminarplaner_testsuite`
+- Webservice-Funktionen (AJAX): `local_seminarplaner_create_draft_methodset`, `local_seminarplaner_transition_methodset`, `local_seminarplaner_list_methodsets`
