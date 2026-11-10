@@ -274,7 +274,8 @@ if ($action === 'importmoddata_newset' && confirm_sesskey()) {
                 $records[] = $mapped;
             }
         }
-        if (!$records) {
+        $konzept = $payload['konzept'] ?? null;
+        if (!$records && empty($konzept['plans'])) {
             throw new moodle_exception('importerrornomethods', 'local_seminarplaner');
         }
 
@@ -291,6 +292,11 @@ if ($action === 'importmoddata_newset' && confirm_sesskey()) {
             'count' => (int)$importresult['created'],
             'id' => $methodsetid,
         ]);
+        $konzeptnotice = local_seminarplaner_konzept_upload_notice(
+            local_seminarplaner_apply_konzept_upload((int)$methodsetid, (int)$versionid, $konzept, (int)$USER->id)
+        );
+        $message .= $konzeptnotice['text'];
+        $error = $konzeptnotice['warn'];
         $missingfiles = (array)($importresult['missingfiles'] ?? []);
         if ($missingfiles) {
             $message .= ' ' . get_string('importmissingfiles', 'local_seminarplaner', (object)[
@@ -356,7 +362,9 @@ if ($action === 'importmoddata_existingset' && confirm_sesskey()) {
                 $records[] = $mapped;
             }
         }
-        if (!$records) {
+        // A file may bring nothing but another plan.
+        $konzept = $payload['konzept'] ?? null;
+        if (!$records && empty($konzept['plans'])) {
             throw new moodle_exception('importerrornomethods', 'local_seminarplaner');
         }
 
@@ -373,6 +381,11 @@ if ($action === 'importmoddata_existingset' && confirm_sesskey()) {
             'updated' => (int)$importresult['updated'],
             'files' => (int)$importresult['files'],
         ]);
+        $konzeptnotice = local_seminarplaner_konzept_upload_notice(
+            local_seminarplaner_apply_konzept_upload((int)$methodsetid, $targetversionid, $konzept, (int)$USER->id)
+        );
+        $message .= $konzeptnotice['text'];
+        $error = $konzeptnotice['warn'];
         // Named but not delivered attachments used to vanish without a word.
         $missingfiles = (array)($importresult['missingfiles'] ?? []);
         if ($missingfiles) {

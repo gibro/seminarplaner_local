@@ -236,6 +236,23 @@ class methodset_repository {
     }
 
     /**
+     * Replace the snapshot of a version.
+     *
+     * @param int $versionid Version id.
+     * @param string $snapshotjson Snapshot payload.
+     * @return bool
+     */
+    public function update_version_snapshot(int $versionid, string $snapshotjson): bool {
+        global $DB;
+
+        return $DB->update_record('local_kgen_methodset_ver', (object)[
+            'id' => $versionid,
+            'snapshotjson' => $snapshotjson,
+            'timemodified' => time(),
+        ]);
+    }
+
+    /**
      * Persist version status and reviewer/publisher marker.
      *
      * @param int $versionid Version id.

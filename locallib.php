@@ -39,12 +39,7 @@ const LOCAL_SEMINARPLANER_IMPORT_MAX_ROWS = 5000;
  * @return string Normalized key, empty string if the title carries no content.
  */
 function local_seminarplaner_normalize_title_key(string $title): string {
-    $title = trim(strip_tags($title));
-    if ($title === '') {
-        return '';
-    }
-    $title = (string)preg_replace('/\s+/u', ' ', $title);
-    return core_text::strtolower($title);
+    return \local_seminarplaner\local\service\konzept_snapshot::normalize_key($title);
 }
 
 /**
@@ -533,6 +528,7 @@ function local_seminarplaner_extract_rows_from_upload(string $filepath, string $
         return [
             'rows' => local_seminarplaner_parse_json_methods($jsoncontent),
             'files' => local_seminarplaner_parse_json_embedded_files($jsoncontent),
+            'konzept' => \local_seminarplaner\local\service\konzept_snapshot::from_upload($jsoncontent),
         ];
     }
     if (substr($name, -4) !== '.zip') {
@@ -862,6 +858,130 @@ function local_seminarplaner_import_records_to_set(
     $transaction->allow_commit();
     $result['missingfiles'] = array_values($result['missingfiles']);
     return $result;
+}
+
+/**
+ * Merge the plans and units of an uploaded concept into a version's snapshot.
+ *
+ * A file without plans only touches the snapshot if the set already carries plans - those
+ * reference the snapshot's units, which have to follow the update.
+ *
+ * @param int $methodsetid Method set id.
+ * @param int $versionid Target version id.
+ * @param array|null $konzept Upload as read by konzept_snapshot::from_upload(), null for CSV/ZIP.
+ * @param int $actorid Importing user id.
+ * @return array{created: int, updated: int, missingrefs: int, missingplans: string[], skipped: string[]}
+ */
+function local_seminarplaner_apply_konzept_upload(int $methodsetid, int $versionid, ?array $konzept, int $actorid): array {
+    $repo = new \local_seminarplaner\local\repository\methodset_repository();
+    $none = ['created' => 0, 'updated' => 0, 'missingrefs' => 0, 'missingplans' => [], 'skipped' => []];
+    if ($konzept === null) {
+        return $none;
+    }
+    $none['skipped'] = (array)$konzept['skipped'];
+
+    $version = $repo->get_version($versionid);
+    if (!$version) {
+        throw new moodle_exception('invalidparameter');
+    }
+    $snapshot = \local_seminarplaner\local\service\konzept_snapshot::decode((string)$version->snapshotjson);
+    if (!$konzept['plans'] && !$snapshot['plans']) {
+        return $none;
+    }
+
+    $merged = \local_seminarplaner\local\service\konzept_snapshot::merge($snapshot, $konzept['methods'], $konzept['plans']);
+    $repo->update_version_snapshot(
+        $versionid,
+        \local_seminarplaner\local\service\konzept_snapshot::encode($merged['snapshot'])
+    );
+    // Only a Seminarkonzept hands its plans to the activities on import.
+    if ($konzept['plans']) {
+        $repo->update_methodset_concepttype($methodsetid, 'seminarkonzept', $actorid);
+    }
+
+    return [
+        'created' => (int)$merged['created'],
+        'updated' => (int)$merged['updated'],
+        'missingrefs' => (int)$merged['missingrefs'],
+        'missingplans' => $merged['missingplans'],
+        'skipped' => $none['skipped'],
+    ];
+}
+
+/**
+ * Word the outcome of local_seminarplaner_apply_konzept_upload() for the page notification.
+ *
+ * @param array $result Outcome.
+ * @return array{text: string, warn: bool}
+ */
+function local_seminarplaner_konzept_upload_notice(array $result): array {
+    $text = '';
+    if ((int)$result['created'] > 0 || (int)$result['updated'] > 0) {
+        $text .= ' ' . get_string('importkonzeptplans', 'local_seminarplaner', (object)[
+            'created' => (int)$result['created'],
+            'updated' => (int)$result['updated'],
+        ]);
+    }
+    $warn = false;
+    if ((int)$result['missingrefs'] > 0) {
+        $text .= ' ' . get_string('importkonzeptmissing', 'local_seminarplaner', (object)[
+            'count' => (int)$result['missingrefs'],
+            'plans' => implode(', ', array_map('s', $result['missingplans'])),
+        ]);
+        $warn = true;
+    }
+    if ($result['skipped']) {
+        $text .= ' ' . get_string('importkonzeptskipped', 'local_seminarplaner',
+            implode(', ', array_map('s', $result['skipped'])));
+        $warn = true;
+    }
+    return ['text' => $text, 'warn' => $warn];
+}
+
+/**
+ * Delete one plan from a version of a global concept.
+ *
+ * Like the unit tools this writes straight into the version and records it in the workflow
+ * log. Activities that already imported the plan keep their copy.
+ *
+ * @param int $methodsetid Method set id.
+ * @param int $versionid Version id.
+ * @param string $plankey Key from konzept_snapshot::plan_key().
+ * @param int $actorid Acting user id.
+ * @return string Name of the deleted plan.
+ */
+function local_seminarplaner_delete_global_plan(int $methodsetid, int $versionid, string $plankey, int $actorid): string {
+    global $DB;
+
+    $repo = new \local_seminarplaner\local\repository\methodset_repository();
+    $version = $repo->get_version($versionid);
+    if (!$version || (int)$version->methodsetid !== $methodsetid) {
+        throw new moodle_exception('invalidparameter');
+    }
+    $snapshot = \local_seminarplaner\local\service\konzept_snapshot::decode((string)$version->snapshotjson);
+    $outcome = \local_seminarplaner\local\service\konzept_snapshot::delete_plan($snapshot, $plankey);
+    if ($outcome['name'] === null) {
+        throw new moodle_exception('invalidparameter');
+    }
+
+    $transaction = $DB->start_delegated_transaction();
+    $repo->update_version_snapshot(
+        $versionid,
+        \local_seminarplaner\local\service\konzept_snapshot::encode($outcome['snapshot'])
+    );
+    $set = $repo->get_methodset($methodsetid);
+    $status = (string)($set->status ?? 'published');
+    (new \local_seminarplaner\local\repository\workflow_event_repository())->create(
+        $methodsetid,
+        $versionid,
+        $status,
+        $status,
+        get_string('editplandeletelogged', 'local_seminarplaner', $outcome['name']),
+        $actorid
+    );
+    $transaction->allow_commit();
+
+    return $outcome['name'];
 }
 
 /**
