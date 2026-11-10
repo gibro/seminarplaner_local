@@ -133,5 +133,31 @@ function xmldb_local_seminarplaner_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026071400, 'local', 'seminarplaner');
     }
 
+    if ($oldversion < 2026111002) {
+        // Aus "Plenum (10-20)" wird "Plenum (13-20)". Der Konzept-Import liest die
+        // Einheiten aus dem Snapshot, deshalb muss die Bezeichnung auch dort wechseln.
+        $DB->set_field_select(
+            'local_kgen_method',
+            'gruppengroesse',
+            'Plenum (13-20)',
+            $DB->sql_compare_text('gruppengroesse') . ' = ' . $DB->sql_compare_text(':old'),
+            ['old' => 'Plenum (10-20)']
+        );
+        $rs = $DB->get_recordset_select(
+            'local_kgen_methodset_ver',
+            $DB->sql_like('snapshotjson', ':old'),
+            ['old' => '%Plenum (10-20)%'],
+            '',
+            'id, snapshotjson'
+        );
+        foreach ($rs as $row) {
+            $json = str_replace('Plenum (10-20)', 'Plenum (13-20)', (string)$row->snapshotjson);
+            $DB->set_field('local_kgen_methodset_ver', 'snapshotjson', $json, ['id' => $row->id]);
+        }
+        $rs->close();
+
+        upgrade_plugin_savepoint(true, 2026111002, 'local', 'seminarplaner');
+    }
+
     return true;
 }

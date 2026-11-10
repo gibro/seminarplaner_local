@@ -69,6 +69,16 @@ class konzept_snapshot {
     }
 
     /**
+     * Bring a group size of an older export to its current name.
+     *
+     * @param string $value Group size.
+     * @return string
+     */
+    public static function rename_group_size(string $value): string {
+        return $value === 'Plenum (10-20)' ? 'Plenum (13-20)' : $value;
+    }
+
+    /**
      * Decode a stored snapshot of any generation.
      *
      * @param string $json Stored snapshot.
@@ -427,6 +437,9 @@ class konzept_snapshot {
      */
     private static function clean_method(array $method): array {
         unset($method['_kgsync'], $method['_kgkonzept'], $method['materialiendraftitemid'], $method['h5pdraftitemid']);
+        if (is_string($method['gruppengroesse'] ?? null)) {
+            $method['gruppengroesse'] = self::rename_group_size($method['gruppengroesse']);
+        }
         if (is_array($method['materialien'] ?? null)) {
             foreach ($method['materialien'] as $index => $entry) {
                 if (is_array($entry)) {

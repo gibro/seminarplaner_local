@@ -416,7 +416,9 @@ function local_seminarplaner_map_legacy_row(array $row): ?array {
             local_seminarplaner_split_multi(local_seminarplaner_row_first($row, ['Seminarphase', 'seminarphase']))
         )),
         'zeitbedarf' => local_seminarplaner_row_first($row, ['Zeitbedarf', 'zeitbedarf']),
-        'gruppengroesse' => local_seminarplaner_row_first($row, ['Gruppengröße', 'Gruppengroesse', 'gruppengroesse']),
+        'gruppengroesse' => \local_seminarplaner\local\service\konzept_snapshot::rename_group_size(
+            local_seminarplaner_row_first($row, ['Gruppengröße', 'Gruppengroesse', 'gruppengroesse'])
+        ),
         'kurzbeschreibung' => local_seminarplaner_row_first($row, ['Kurzbeschreibung', 'kurzbeschreibung']),
         'ablauf' => local_seminarplaner_row_first($row, ['Ablauf', 'ablauf']),
         'lernziele' => local_seminarplaner_row_first($row, ['Lernziele (Ich-kann ...)', 'lernziele']),

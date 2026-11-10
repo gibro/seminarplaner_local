@@ -317,6 +317,17 @@ final class konzept_upload_test extends advanced_testcase {
         $this->assertSame('Inhalt', $copied->get_content());
     }
 
+    public function test_old_group_size_of_an_export_gets_its_current_name(): void {
+        $konzept = konzept_snapshot::from_upload((string)json_encode([
+            'methods' => [['id' => 'k1', 'titel' => 'A', 'gruppengroesse' => 'Plenum (10-20)']],
+        ]));
+
+        $this->assertSame('Plenum (13-20)', $konzept['methods'][0]['gruppengroesse']);
+        $this->assertSame('Plenum (6-12)', konzept_snapshot::rename_group_size('Plenum (6-12)'));
+        $row = local_seminarplaner_map_legacy_row(['Titel' => 'A', 'Gruppengröße' => 'Plenum (10-20)']);
+        $this->assertSame('Plenum (13-20)', $row['gruppengroesse']);
+    }
+
     public function test_delete_of_unknown_plan_is_refused(): void {
         $this->expectException(moodle_exception::class);
         local_seminarplaner_delete_global_plan($this->setid, $this->versionid, md5('nix'), 2);
