@@ -72,7 +72,7 @@ class edit_unit_form extends moodleform {
             'seminarphase' => $plain(['Orientierung', 'Erfahrungserhebung', 'Analyse', 'Handlungsteil', 'Transfer']),
             'zeitbedarf' => $plain(['5', '10', '20', '30', '45', '60', '90', '120', '150', '180',
                 'mehr als 180 Minuten']),
-            'gruppengroesse' => $plain(['Gruppenarbeit (2-5)', 'Plenum (10-20)', 'beliebig']),
+            'gruppengroesse' => $plain(['Gruppenarbeit (2-5)', 'Plenum (6-12)', 'Plenum (13-20)', 'beliebig']),
             'vorbereitung' => $plain(['keine', '<10 Min', '10–30 Min', '>30 Min']),
             'raumanforderungen' => $plain(['Plenum', 'Stuhlkreis', 'Stehtische', 'viel Freifläche',
                 'Gruppentische', 'Gruppenräume', 'akustisch ruhig']),

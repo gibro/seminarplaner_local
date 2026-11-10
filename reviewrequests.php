@@ -537,6 +537,11 @@ function local_seminarplaner_render_set_table(
             $actions[] = html_writer::link(new moodle_url('/local/seminarplaner/editunits.php', [
                 'methodsetid' => $setid,
             ]), get_string('editunitslink', 'local_seminarplaner'), ['class' => 'kg-action-link']);
+            if ((string)($set->concepttype ?? 'sammlung') === 'seminarkonzept') {
+                $actions[] = html_writer::link(new moodle_url('/local/seminarplaner/editplans.php', [
+                    'methodsetid' => $setid,
+                ]), get_string('editplanslink', 'local_seminarplaner'), ['class' => 'kg-action-link']);
+            }
         }
 
         $allowdecisions = ((string)$set->status === 'review')

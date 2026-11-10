@@ -75,56 +75,12 @@ function local_seminarplaner_fork_current_version_to_draft(
     $snapshotjson = (string)($sourceversion->snapshotjson ?? '{}');
     $newversionid = $repo->create_version((int)$methodset->id, $newversionnum, 'draft', $snapshotjson, $actorid);
     $repo->update_methodset_status((int)$methodset->id, 'draft', $actorid);
-    $now = time();
     $methods = $DB->get_records('local_kgen_method', [
         'methodsetid' => (int)$methodset->id,
         'methodsetversionid' => $sourceversionid,
     ], 'id ASC');
-    $files = get_file_storage();
-    $contextid = context_system::instance()->id;
-
     foreach ($methods as $method) {
-        $oldmethodid = (int)$method->id;
-        unset($method->id);
-        $method->methodsetversionid = $newversionid;
-        $method->timecreated = $now;
-        $method->timemodified = $now;
-        $method->createdby = $actorid;
-        $method->modifiedby = $actorid;
-        $newmethodid = (int)$DB->insert_record('local_kgen_method', $method);
-
-        $methodfilelinks = $DB->get_records('local_kgen_method_file', ['methodid' => $oldmethodid], 'id ASC');
-        foreach ($methodfilelinks as $link) {
-            $kind = ((string)$link->kind === 'h5p') ? 'h5p' : 'material';
-            $filearea = $kind === 'h5p' ? 'method_h5p' : 'method_material';
-            $newitemid = local_seminarplaner_next_file_itemid($filearea);
-            $areaentries = $files->get_area_files(
-                $contextid,
-                'local_seminarplaner',
-                $filearea,
-                (int)$link->fileitemid,
-                'id ASC',
-                false
-            );
-            foreach ($areaentries as $entry) {
-                $filerecord = (object)[
-                    'contextid' => $contextid,
-                    'component' => 'local_seminarplaner',
-                    'filearea' => $filearea,
-                    'itemid' => $newitemid,
-                    'filepath' => (string)$entry->get_filepath(),
-                    'filename' => (string)$entry->get_filename(),
-                    'userid' => $actorid,
-                ];
-                $files->create_file_from_string($filerecord, (string)$entry->get_content());
-            }
-            $DB->insert_record('local_kgen_method_file', (object)[
-                'methodid' => $newmethodid,
-                'kind' => $kind,
-                'fileitemid' => $newitemid,
-                'timecreated' => $now,
-            ]);
-        }
+        local_seminarplaner_copy_method_to_version($method, $newversionid, $actorid);
     }
 
     $transaction->allow_commit();
@@ -274,7 +230,8 @@ if ($action === 'importmoddata_newset' && confirm_sesskey()) {
                 $records[] = $mapped;
             }
         }
-        if (!$records) {
+        $konzept = $payload['konzept'] ?? null;
+        if (!$records && empty($konzept['plans'])) {
             throw new moodle_exception('importerrornomethods', 'local_seminarplaner');
         }
 
@@ -291,6 +248,11 @@ if ($action === 'importmoddata_newset' && confirm_sesskey()) {
             'count' => (int)$importresult['created'],
             'id' => $methodsetid,
         ]);
+        $konzeptnotice = local_seminarplaner_konzept_upload_notice(
+            local_seminarplaner_apply_konzept_upload((int)$methodsetid, (int)$versionid, $konzept, (int)$USER->id)
+        );
+        $message .= $konzeptnotice['text'];
+        $error = $konzeptnotice['warn'];
         $missingfiles = (array)($importresult['missingfiles'] ?? []);
         if ($missingfiles) {
             $message .= ' ' . get_string('importmissingfiles', 'local_seminarplaner', (object)[
@@ -356,7 +318,9 @@ if ($action === 'importmoddata_existingset' && confirm_sesskey()) {
                 $records[] = $mapped;
             }
         }
-        if (!$records) {
+        // A file may bring nothing but another plan.
+        $konzept = $payload['konzept'] ?? null;
+        if (!$records && empty($konzept['plans'])) {
             throw new moodle_exception('importerrornomethods', 'local_seminarplaner');
         }
 
@@ -373,6 +337,11 @@ if ($action === 'importmoddata_existingset' && confirm_sesskey()) {
             'updated' => (int)$importresult['updated'],
             'files' => (int)$importresult['files'],
         ]);
+        $konzeptnotice = local_seminarplaner_konzept_upload_notice(
+            local_seminarplaner_apply_konzept_upload((int)$methodsetid, $targetversionid, $konzept, (int)$USER->id)
+        );
+        $message .= $konzeptnotice['text'];
+        $error = $konzeptnotice['warn'];
         // Named but not delivered attachments used to vanish without a word.
         $missingfiles = (array)($importresult['missingfiles'] ?? []);
         if ($missingfiles) {
