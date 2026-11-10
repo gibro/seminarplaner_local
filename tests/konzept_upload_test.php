@@ -243,6 +243,80 @@ final class konzept_upload_test extends advanced_testcase {
         $this->assertSame(1, $DB->count_records('local_kgen_workflow_event', ['methodsetid' => $this->setid]));
     }
 
+    public function test_resubmitted_plan_keeps_other_plans_and_their_units(): void {
+        $snapshot = [
+            'methods' => [
+                ['id' => 'k1', 'titel' => 'Gemeinsam', 'ablauf' => 'Alt', 'kurz' => 'Wird geleert'],
+                ['id' => 'k2', 'titel' => 'Nur alter Plan A'],
+                ['id' => 'k3', 'titel' => 'Nur Plan B'],
+                ['id' => 'k4', 'titel' => 'Ohne Plan'],
+            ],
+            'plans' => [
+                $this->plan('Plan A', ['alt' => ['titel' => 'Entfaellt']], ['k1', 'k2']),
+                $this->plan('Plan B', ['b9' => ['titel' => 'Bleibt']], ['k1', 'k3']),
+            ],
+        ];
+
+        $outcome = konzept_snapshot::merge_resubmitted_plan(
+            $snapshot,
+            [['id' => 'kurs-1', 'titel' => 'gemeinsam', 'ablauf' => 'Neu', 'kurz' => '', '_kgsync' => ['x' => 1]]],
+            $this->plan('Plan A', ['neu' => ['titel' => 'Dazu']], ['kurs-1'])
+        );
+
+        $merged = $outcome['snapshot'];
+        $units = array_column($merged['methods'], null, 'id');
+        $this->assertSame(['k1', 'k3', 'k4'], array_keys($units));
+        $this->assertSame([konzept_snapshot::normalize_key('Nur alter Plan A')], $outcome['droppedtitles']);
+        $this->assertSame('Neu', $units['k1']['ablauf']);
+        $this->assertArrayNotHasKey('kurz', $units['k1']);
+        $this->assertArrayNotHasKey('_kgsync', $units['k1']);
+
+        $plans = $this->by_name($merged);
+        $this->assertSame(['Plan A', 'Plan B'], array_keys($plans));
+        $this->assertSame(['neu'], array_keys($plans['Plan A']['state']['sequenz']['bausteine']));
+        $this->assertSame(['k1'], $plans['Plan A']['state']['sequenz']['einheitenauswahlen']['ea1']['kandidaten']);
+        $this->assertSame('Bleibt', $plans['Plan B']['state']['sequenz']['bausteine']['b9']['titel']);
+    }
+
+    public function test_copy_to_version_gives_the_unit_its_own_files(): void {
+        global $DB;
+
+        $now = time();
+        $methodid = (int)$DB->insert_record('local_kgen_method', (object)[
+            'methodsetid' => $this->setid,
+            'methodsetversionid' => $this->versionid,
+            'title' => 'Mit Datei',
+            'timecreated' => $now,
+            'timemodified' => $now,
+        ]);
+        $itemid = local_seminarplaner_next_file_itemid('method_material');
+        $contextid = context_system::instance()->id;
+        $files = get_file_storage();
+        $files->create_file_from_string((object)[
+            'contextid' => $contextid,
+            'component' => 'local_seminarplaner',
+            'filearea' => 'method_material',
+            'itemid' => $itemid,
+            'filepath' => '/',
+            'filename' => 'a.txt',
+        ], 'Inhalt');
+        $DB->insert_record('local_kgen_method_file', (object)[
+            'methodid' => $methodid,
+            'kind' => 'material',
+            'fileitemid' => $itemid,
+            'timecreated' => $now,
+        ]);
+        $target = $this->repo->create_version($this->setid, 2, 'draft', '{}', 2);
+
+        $copyid = local_seminarplaner_copy_method_to_version($DB->get_record('local_kgen_method', ['id' => $methodid]), $target, 2);
+
+        $this->assertSame($target, (int)$DB->get_field('local_kgen_method', 'methodsetversionid', ['id' => $copyid]));
+        $newitemid = (int)$DB->get_field('local_kgen_method_file', 'fileitemid', ['methodid' => $copyid]);
+        $this->assertNotSame($itemid, $newitemid);
+        $copied = $files->get_file($contextid, 'local_seminarplaner', 'method_material', $newitemid, '/', 'a.txt');
+        $this->assertSame('Inhalt', $copied->get_content());
+    }
+
     public function test_delete_of_unknown_plan_is_refused(): void {
         $this->expectException(moodle_exception::class);
         local_seminarplaner_delete_global_plan($this->setid, $this->versionid, md5('nix'), 2);

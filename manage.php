@@ -75,56 +75,12 @@ function local_seminarplaner_fork_current_version_to_draft(
     $snapshotjson = (string)($sourceversion->snapshotjson ?? '{}');
     $newversionid = $repo->create_version((int)$methodset->id, $newversionnum, 'draft', $snapshotjson, $actorid);
     $repo->update_methodset_status((int)$methodset->id, 'draft', $actorid);
-    $now = time();
     $methods = $DB->get_records('local_kgen_method', [
         'methodsetid' => (int)$methodset->id,
         'methodsetversionid' => $sourceversionid,
     ], 'id ASC');
-    $files = get_file_storage();
-    $contextid = context_system::instance()->id;
-
     foreach ($methods as $method) {
-        $oldmethodid = (int)$method->id;
-        unset($method->id);
-        $method->methodsetversionid = $newversionid;
-        $method->timecreated = $now;
-        $method->timemodified = $now;
-        $method->createdby = $actorid;
-        $method->modifiedby = $actorid;
-        $newmethodid = (int)$DB->insert_record('local_kgen_method', $method);
-
-        $methodfilelinks = $DB->get_records('local_kgen_method_file', ['methodid' => $oldmethodid], 'id ASC');
-        foreach ($methodfilelinks as $link) {
-            $kind = ((string)$link->kind === 'h5p') ? 'h5p' : 'material';
-            $filearea = $kind === 'h5p' ? 'method_h5p' : 'method_material';
-            $newitemid = local_seminarplaner_next_file_itemid($filearea);
-            $areaentries = $files->get_area_files(
-                $contextid,
-                'local_seminarplaner',
-                $filearea,
-                (int)$link->fileitemid,
-                'id ASC',
-                false
-            );
-            foreach ($areaentries as $entry) {
-                $filerecord = (object)[
-                    'contextid' => $contextid,
-                    'component' => 'local_seminarplaner',
-                    'filearea' => $filearea,
-                    'itemid' => $newitemid,
-                    'filepath' => (string)$entry->get_filepath(),
-                    'filename' => (string)$entry->get_filename(),
-                    'userid' => $actorid,
-                ];
-                $files->create_file_from_string($filerecord, (string)$entry->get_content());
-            }
-            $DB->insert_record('local_kgen_method_file', (object)[
-                'methodid' => $newmethodid,
-                'kind' => $kind,
-                'fileitemid' => $newitemid,
-                'timecreated' => $now,
-            ]);
-        }
+        local_seminarplaner_copy_method_to_version($method, $newversionid, $actorid);
     }
 
     $transaction->allow_commit();

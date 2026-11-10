@@ -985,6 +985,56 @@ function local_seminarplaner_delete_global_plan(int $methodsetid, int $versionid
 }
 
 /**
+ * Copy one unit into another version of its set, with its own copy of the files.
+ *
+ * @param stdClass $method Unit row of the source version.
+ * @param int $versionid Target version id.
+ * @param int $actorid Acting user id.
+ * @return int New unit row id.
+ */
+function local_seminarplaner_copy_method_to_version(stdClass $method, int $versionid, int $actorid): int {
+    global $DB;
+
+    $now = time();
+    $copy = clone $method;
+    unset($copy->id);
+    $copy->methodsetversionid = $versionid;
+    $copy->timecreated = $now;
+    $copy->timemodified = $now;
+    $copy->createdby = $actorid;
+    $copy->modifiedby = $actorid;
+    $newmethodid = (int)$DB->insert_record('local_kgen_method', $copy);
+
+    $files = get_file_storage();
+    $contextid = context_system::instance()->id;
+    foreach ($DB->get_records('local_kgen_method_file', ['methodid' => (int)$method->id], 'id ASC') as $link) {
+        $kind = ((string)$link->kind === 'h5p') ? 'h5p' : 'material';
+        $filearea = $kind === 'h5p' ? 'method_h5p' : 'method_material';
+        $newitemid = local_seminarplaner_next_file_itemid($filearea);
+        $entries = $files->get_area_files($contextid, 'local_seminarplaner', $filearea, (int)$link->fileitemid, 'id ASC', false);
+        foreach ($entries as $entry) {
+            $files->create_file_from_string((object)[
+                'contextid' => $contextid,
+                'component' => 'local_seminarplaner',
+                'filearea' => $filearea,
+                'itemid' => $newitemid,
+                'filepath' => (string)$entry->get_filepath(),
+                'filename' => (string)$entry->get_filename(),
+                'userid' => $actorid,
+            ], (string)$entry->get_content());
+        }
+        $DB->insert_record('local_kgen_method_file', (object)[
+            'methodid' => $newmethodid,
+            'kind' => $kind,
+            'fileitemid' => $newitemid,
+            'timecreated' => $now,
+        ]);
+    }
+
+    return $newmethodid;
+}
+
+/**
  * Build one CSV cell for mod_data-compatible export.
  *
  * @param string $value Cell value.

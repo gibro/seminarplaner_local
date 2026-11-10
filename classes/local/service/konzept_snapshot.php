@@ -183,9 +183,10 @@ class konzept_snapshot {
      * @param array $snapshot Snapshot as returned by {@see self::decode()}.
      * @param array $methods Uploaded units.
      * @param array $plans Uploaded plans.
+     * @param bool $replaceunits Replace matched units whole, so emptied fields stay empty.
      * @return array{snapshot: array, created: int, updated: int, missingrefs: int, missingplans: string[]}
      */
-    public static function merge(array $snapshot, array $methods, array $plans): array {
+    public static function merge(array $snapshot, array $methods, array $plans, bool $replaceunits = false): array {
         $units = array_values($snapshot['methods']);
         $indexbytitle = [];
         $knownids = [];
@@ -210,6 +211,9 @@ class konzept_snapshot {
             $uploadid = trim((string)($method['id'] ?? ''));
             if (isset($indexbytitle[$key])) {
                 $index = $indexbytitle[$key];
+                if ($replaceunits) {
+                    $units[$index] = ['id' => $units[$index]['id'] ?? ''];
+                }
                 foreach ($method as $field => $value) {
                     if ($field !== 'id' && $value !== '' && $value !== null && $value !== []) {
                         $units[$index][$field] = $value;
@@ -266,6 +270,48 @@ class konzept_snapshot {
 
         $result['snapshot'] = ['methods' => $units, 'plans' => $stored];
         return $result;
+    }
+
+    /**
+     * Put one plan resubmitted from an activity into the concept it came from.
+     *
+     * The other plans stay. The activity is authoritative for the units it sends. A unit only
+     * the plan's previous form used, and no plan uses now, leaves with it.
+     *
+     * @param array $snapshot Snapshot as returned by {@see self::decode()}.
+     * @param array $methods The units the plan references.
+     * @param array $plan The plan.
+     * @return array{snapshot: array, droppedtitles: string[]} Dropped units as title keys.
+     */
+    public static function merge_resubmitted_plan(array $snapshot, array $methods, array $plan): array {
+        $plan = self::normalize_plan($plan);
+        $planname = self::normalize_key($plan['name']);
+        $previousrefs = [];
+        foreach ($snapshot['plans'] as $stored) {
+            if (self::normalize_key((string)$stored['name']) === $planname) {
+                $previousrefs += array_flip(self::collect_card_refs($stored['state']));
+            }
+        }
+
+        $merged = self::merge($snapshot, array_map([self::class, 'clean_method'], $methods), [$plan], true)['snapshot'];
+
+        $usedrefs = [];
+        foreach ($merged['plans'] as $stored) {
+            $usedrefs += array_flip(self::collect_card_refs($stored['state']));
+        }
+        $kept = [];
+        $droppedtitles = [];
+        foreach ($merged['methods'] as $unit) {
+            $id = trim((string)($unit['id'] ?? ''));
+            if (isset($previousrefs[$id]) && !isset($usedrefs[$id])) {
+                $droppedtitles[] = self::normalize_key(self::unit_title($unit));
+                continue;
+            }
+            $kept[] = $unit;
+        }
+        $merged['methods'] = $kept;
+
+        return ['snapshot' => $merged, 'droppedtitles' => $droppedtitles];
     }
 
     /**
