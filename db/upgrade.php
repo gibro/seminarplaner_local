@@ -159,5 +159,36 @@ function xmldb_local_seminarplaner_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026111002, 'local', 'seminarplaner');
     }
 
+    if ($oldversion < 2026111100) {
+        // Gruppengrößen ohne Zahlen: Gruppenarbeit, Plenum, beliebige Gruppengröße
+        // (neu dazu: Partnerarbeit). Auch in den Snapshots, aus denen der Konzept-Import liest.
+        $renames = \local_seminarplaner\local\service\konzept_snapshot::GROUP_SIZE_RENAMES;
+        foreach ($renames as $old => $new) {
+            $DB->set_field_select(
+                'local_kgen_method',
+                'gruppengroesse',
+                $new,
+                $DB->sql_compare_text('gruppengroesse') . ' = ' . $DB->sql_compare_text(':old'),
+                ['old' => $old]
+            );
+        }
+        $rs = $DB->get_recordset_select(
+            'local_kgen_methodset_ver',
+            $DB->sql_like('snapshotjson', ':key'),
+            ['key' => '%gruppengroesse%'],
+            '',
+            'id, snapshotjson'
+        );
+        foreach ($rs as $row) {
+            $json = \local_seminarplaner\local\service\konzept_snapshot::rename_group_sizes_in_json((string)$row->snapshotjson);
+            if ($json !== (string)$row->snapshotjson) {
+                $DB->set_field('local_kgen_methodset_ver', 'snapshotjson', $json, ['id' => $row->id]);
+            }
+        }
+        $rs->close();
+
+        upgrade_plugin_savepoint(true, 2026111100, 'local', 'seminarplaner');
+    }
+
     return true;
 }

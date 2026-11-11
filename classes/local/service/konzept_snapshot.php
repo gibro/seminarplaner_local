@@ -68,6 +68,15 @@ class konzept_snapshot {
         return md5(self::normalize_key($name));
     }
 
+    /** @var array<string, string> Frühere Gruppengrößen und ihre heutige Bezeichnung. */
+    public const GROUP_SIZE_RENAMES = [
+        'Gruppenarbeit (2-5)' => 'Gruppenarbeit',
+        'Plenum (6-12)' => 'Plenum',
+        'Plenum (10-20)' => 'Plenum',
+        'Plenum (13-20)' => 'Plenum',
+        'beliebig' => 'beliebige Gruppengröße',
+    ];
+
     /**
      * Bring a group size of an older export to its current name.
      *
@@ -75,7 +84,21 @@ class konzept_snapshot {
      * @return string
      */
     public static function rename_group_size(string $value): string {
-        return $value === 'Plenum (10-20)' ? 'Plenum (13-20)' : $value;
+        return self::GROUP_SIZE_RENAMES[$value] ?? $value;
+    }
+
+    /**
+     * Rename every older group size inside a JSON text, wherever a unit sits in it.
+     *
+     * @param string $json JSON text.
+     * @return string
+     */
+    public static function rename_group_sizes_in_json(string $json): string {
+        return (string)preg_replace_callback(
+            '/("gruppengroesse"\s*:\s*)"(Gruppenarbeit \(2-5\)|Plenum \((?:6-12|10-20|13-20)\)|beliebig)"/',
+            static fn(array $m): string => $m[1] . json_encode(self::GROUP_SIZE_RENAMES[$m[2]], JSON_UNESCAPED_UNICODE),
+            $json
+        );
     }
 
     /**

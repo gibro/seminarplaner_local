@@ -322,10 +322,26 @@ final class konzept_upload_test extends advanced_testcase {
             'methods' => [['id' => 'k1', 'titel' => 'A', 'gruppengroesse' => 'Plenum (10-20)']],
         ]));
 
-        $this->assertSame('Plenum (13-20)', $konzept['methods'][0]['gruppengroesse']);
-        $this->assertSame('Plenum (6-12)', konzept_snapshot::rename_group_size('Plenum (6-12)'));
-        $row = local_seminarplaner_map_legacy_row(['Titel' => 'A', 'Gruppengröße' => 'Plenum (10-20)']);
-        $this->assertSame('Plenum (13-20)', $row['gruppengroesse']);
+        $this->assertSame('Plenum', $konzept['methods'][0]['gruppengroesse']);
+        $this->assertSame('Gruppenarbeit', konzept_snapshot::rename_group_size('Gruppenarbeit (2-5)'));
+        $this->assertSame('beliebige Gruppengröße', konzept_snapshot::rename_group_size('beliebig'));
+        $this->assertSame('Partnerarbeit', konzept_snapshot::rename_group_size('Partnerarbeit'));
+        $row = local_seminarplaner_map_legacy_row(['Titel' => 'A', 'Gruppengröße' => 'Plenum (6-12)']);
+        $this->assertSame('Plenum', $row['gruppengroesse']);
+    }
+
+    public function test_group_sizes_in_a_stored_snapshot_get_their_current_name(): void {
+        $json = (string)json_encode([
+            'methods' => [
+                ['titel' => 'beliebig', 'gruppengroesse' => 'beliebig'],
+                ['titel' => 'B', 'gruppengroesse' => 'Plenum (13-20)'],
+            ],
+        ]);
+        $renamed = json_decode(konzept_snapshot::rename_group_sizes_in_json($json), true);
+
+        $this->assertSame('beliebige Gruppengröße', $renamed['methods'][0]['gruppengroesse']);
+        $this->assertSame('beliebig', $renamed['methods'][0]['titel']);
+        $this->assertSame('Plenum', $renamed['methods'][1]['gruppengroesse']);
     }
 
     public function test_delete_of_unknown_plan_is_refused(): void {
